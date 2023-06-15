@@ -13,6 +13,9 @@ if typing.TYPE_CHECKING:
     from app.web.app import Application
 
 API_PATH = "https://api.vk.com/method/"
+VK_API_FAILS = {
+    2: "key_timeout",
+}
 
 
 # TODO: fix this
@@ -82,8 +85,14 @@ class VkApiAccessor(BaseAccessor):
         ) as resp:
             json_data = await resp.json()
             self.logger.info(json_data)
-            self.ts = json_data["ts"]
-            updates = json_data["updates"]
+            try:
+                self.ts = json_data["ts"]
+                updates = json_data["updates"]
+            except KeyError:
+                match VK_API_FAILS[json_data["failed"]]:
+                    case "key_timeout":
+                        await self._get_long_poll_service()
+                        updates = []
             return updates
 
     async def send_message(self, message: Message, peer_id: int) -> None:

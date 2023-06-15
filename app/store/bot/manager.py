@@ -16,9 +16,11 @@ class BotManager:
     async def handle_updates(self, updates: list[Update]):
         for update in updates:
             if update.type == "message_new":
+                await self.handle_new_message(update)
+
+    async def handle_new_message(self, update: Update):
+        match update.object.body:
+            case "Привет!":
                 await self.app.store.vk_api.send_message(
-                    Message(
-                        user_id=update.object.user_id,
-                        text="Привет!",
-                    ), update.object.peer_id
+                    Message(user_id=update.object.user_id, text="Привет!"), update.object.peer_id
                 )

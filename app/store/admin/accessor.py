@@ -39,7 +39,9 @@ class AdminAccessor(BaseAccessor):
                 await add_session.execute(query_add_admin)
                 await add_session.commit()
             except IntegrityError as e:
-                self.logger.exception("Email must be unique", exc_info=e)
+                self.logger.exception(
+                    "Email must be unique\nNot big deal if message shows up during start", exc_info=e
+                )
                 await add_session.rollback()
 
         return Admin(id=1, email=email, password=hashed_psw)

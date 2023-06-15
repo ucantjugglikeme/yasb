@@ -34,18 +34,6 @@ class Poller:
                 raw_updates = await self.store.vk_api.poll()
             except ClientOSError:
                 continue
-            print(raw_updates)
-            # updates = [
-            #     Update(
-            #         type=raw_update["type"],
-            #         object=UpdateObject(
-            #             id=raw_update["object"]["message"]["id"],
-            #             user_id=raw_update["object"]["message"]["from_id"],
-            #             body=raw_update["object"]["message"]["text"],
-            #         )
-            #     ) for raw_update in raw_updates
-            # ]
-            # await self.store.bots_manager.handle_updates(updates)
             if raw_updates:
                 updates = [
                     Update(
