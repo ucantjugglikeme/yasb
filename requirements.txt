@@ -31,3 +31,7 @@ alembic==1.9.2
 cffi==1.15.1
 cryptography==39.0.0
 pycparser==2.21
+certifi==2023.5.7
+requests==2.31.0
+urllib3==2.0.3
+vk-api==11.9.9

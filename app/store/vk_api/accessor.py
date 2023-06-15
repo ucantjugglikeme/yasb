@@ -1,3 +1,4 @@
+import enum
 import random
 import typing
 from typing import Optional
@@ -13,9 +14,6 @@ if typing.TYPE_CHECKING:
     from app.web.app import Application
 
 API_PATH = "https://api.vk.com/method/"
-VK_API_FAILS = {
-    2: "key_timeout",
-}
 
 
 # TODO: fix this
@@ -89,8 +87,8 @@ class VkApiAccessor(BaseAccessor):
                 self.ts = json_data["ts"]
                 updates = json_data["updates"]
             except KeyError:
-                match VK_API_FAILS[json_data["failed"]]:
-                    case "key_timeout":
+                match json_data["failed"]:
+                    case VkApiFail.key_timeout.value:
                         await self._get_long_poll_service()
                         updates = []
             return updates
@@ -113,3 +111,7 @@ class VkApiAccessor(BaseAccessor):
         ) as resp:
             data = await resp.json()
             self.logger.info(data)
+
+
+class VkApiFail(enum.Enum):
+    key_timeout = 2
