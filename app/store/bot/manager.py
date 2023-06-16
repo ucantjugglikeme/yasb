@@ -26,15 +26,16 @@ class BotManager:
                     pass
 
     async def handle_new_message(self, update: Update):
-        greetings = int(not(re.fullmatch(f" *{self.BOT_MENTION}? *Привет! *", update.object.body) is None))
+        greetings = int(not(re.fullmatch(f"({self.BOT_MENTION} )?Привет! *", update.object.body) is None))
         start_loto = int(not(
-            re.fullmatch(f" *{self.BOT_MENTION}? *(начать) *(лото) *(!)? *", update.object.body.lower()) is None
+            re.fullmatch(f"({self.BOT_MENTION} )?(начать) (лото)( [1|2])? *(!)? *", update.object.body.lower()) is None
         )) << 1
         join_loto = int(not(re.fullmatch(f" *\+ *", update.object.body) is None)) << 2
         stop_loto = int(not(
-            re.fullmatch(f" *{self.BOT_MENTION}? *(стоп) *(лото) *(!)? *", update.object.body.lower()) is None
+            re.fullmatch(f"({self.BOT_MENTION} )?(стоп) (лото) *(!)? *", update.object.body.lower()) is None
         )) << 3
         command_flags = stop_loto | join_loto | start_loto | greetings
+        print(command_flags)
 
         match command_flags:
             case Commands.greetings.value:
@@ -42,7 +43,10 @@ class BotManager:
                     Message(user_id=update.object.user_id, text="Привет!"), update.object.peer_id
                 )
             case Commands.start_loto.value:
-                pass
+                lead_id = update.object.user_id
+                peer_id = update.object.peer_id
+                game_type = re.sub("\D", "", update.object.body)
+                await self.russian_loto.start_session(lead_id, peer_id, game_type)
             case Commands.join_loto.value:
                 pass
             case Commands.stop_loto.value:
@@ -55,46 +59,24 @@ class RussianLoto:
     def __init__(self, app: "Application"):
         self.app = app
         self.logger = getLogger("Russian Loto")
-        self.fsm_state = FSMState.started
 
-    async def fsm_transition(self):
-        match self.fsm_state:
-            case FSMState.started:
-                pass
-            case FSMState.adding_players:
-                pass
-            case FSMState.dealing_cards:
-                pass
-            case FSMState.filling_bag:
-                pass
-            case FSMState.handling_moves:
-                pass
-            case FSMState.closed:
-                pass
+    async def start_session(self, lead_id, peer_id, game_type):
+        session_id, response = await self.app.store.loto_games.create_new_session(peer_id, game_type)
+        print(session_id)
+        print(response)
+        await self.app.store.loto_games.add_lead_to_session(session_id, lead_id)
 
-    async def _start_session(self):
+    async def add_players(self):
         pass
 
-    async def _add_players(self):
+    async def fill_bag(self):
         pass
 
-    async def _fill_bag(self):
+    async def lead_move(self):
         pass
 
-    async def _lead_move(self):
+    async def close_session(self):
         pass
-
-    async def _close_session(self):
-        pass
-
-
-class FSMState(enum.Enum):
-    started = 0
-    adding_players = 1
-    dealing_cards = 2
-    filling_bag = 3
-    handling_moves = 4
-    closed = 5
 
 
 class Commands(enum.Enum):
@@ -102,4 +84,3 @@ class Commands(enum.Enum):
     start_loto = 0b0010
     join_loto = 0b0100
     stop_loto = 0b1000
-

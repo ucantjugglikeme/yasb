@@ -16,7 +16,6 @@ from sqlalchemy.orm import relationship
 
 @dataclass
 class GameSession:
-    id: int
     chat_id: int
     start_date: datetime
     last_event_date: datetime
@@ -60,8 +59,7 @@ class CardCell:
 
 class GameSessionModel(db):
     __tablename__ = "Session"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    chat_id = Column(Integer, nullable=False, unique=True)
+    chat_id = Column(Integer, primary_key=True)
     type = Column(VARCHAR(45), nullable=False, default="simple")
     status = Column(VARCHAR(45), nullable=False, default="started")
     start_date = Column(DATETIME, nullable=False)
@@ -70,8 +68,8 @@ class GameSessionModel(db):
     session_player = relationship("SessionPlayerModel")
 
     def __repr__(self) -> str:
-        return f"<GameSessionModel(id='{self.id}', chat_id='{self.chat_id}', type='{self.type}', " \
-               f"status='{self.status}', start_date='{self.start_date}', last_event_date='{self.last_event_date}')>"
+        return f"<GameSessionModel(chat_id='{self.chat_id}', type='{self.type}', status='{self.status}', " \
+               f"start_date='{self.start_date}', last_event_date='{self.last_event_date}')>"
 
 
 class PlayerModel(db):
@@ -90,7 +88,7 @@ class PlayerModel(db):
 
 class BarrelModel(db):
     __tablename__ = "Barrel"
-    bag_id = Column(Integer, ForeignKey("Session.id", ondelete="CASCADE"), primary_key=True)
+    bag_id = Column(Integer, ForeignKey("Session.chat_id", ondelete="CASCADE"), primary_key=True)
     barrel_id = Column(Integer, primary_key=True)
 
     def __repr__(self) -> str:
@@ -99,7 +97,7 @@ class BarrelModel(db):
 
 class SessionPlayerModel(db):
     __tablename__ = "SessionPlayer"
-    session_id = Column(Integer, ForeignKey("Session.id", ondelete="CASCADE"), primary_key=True)
+    session_id = Column(Integer, ForeignKey("Session.chat_id", ondelete="CASCADE"), primary_key=True)
     player_id = Column(Integer, ForeignKey("Player.id", ondelete="CASCADE"), primary_key=True)
     role = Column(VARCHAR(45), nullable=False, default="lead")
     card_number = Column(Integer, nullable=True)

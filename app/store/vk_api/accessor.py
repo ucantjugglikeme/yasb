@@ -112,6 +112,27 @@ class VkApiAccessor(BaseAccessor):
             data = await resp.json()
             self.logger.info(data)
 
+    async def get_chat_user(self, chat_id: int, user_id: int) -> dict[str, int | str]:
+        async with self.session.get(
+            self._build_query(
+                API_PATH,
+                "messages.getConversationMembers",
+                params={
+                    "access_token": self.app.config.bot.token,
+                    "peer_id": chat_id
+                }
+            )
+        ) as resp:
+            data = (await resp.json())["response"]
+            self.logger.info(data)
+            profiles = [
+                {"id": profile["id"], "first_name": profile["first_name"], "last_name": profile["last_name"]}
+                for profile in data["profiles"]
+            ]
+            user = list(filter(lambda profile: (profile["id"] == user_id), profiles))[0]
+            print(user)
+            return user
+
 
 class VkApiFail(enum.Enum):
     key_timeout = 2

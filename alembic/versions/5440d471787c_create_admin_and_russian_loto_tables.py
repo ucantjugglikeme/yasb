@@ -1,8 +1,8 @@
-"""Added admin table and tables for Russian Loto
+"""Create admin and Russian Loto tables
 
-Revision ID: 25bdd9acb548
+Revision ID: 5440d471787c
 Revises: 
-Create Date: 2023-06-15 18:50:52.142652
+Create Date: 2023-06-16 22:21:06.357860
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '25bdd9acb548'
+revision = '5440d471787c'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -34,19 +34,17 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('Session',
-    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('chat_id', sa.Integer(), nullable=False),
     sa.Column('type', sa.VARCHAR(length=45), nullable=False),
     sa.Column('status', sa.VARCHAR(length=45), nullable=False),
     sa.Column('start_date', sa.DATETIME(), nullable=False),
     sa.Column('last_event_date', sa.DATETIME(), nullable=False),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('chat_id')
+    sa.PrimaryKeyConstraint('chat_id')
     )
     op.create_table('Barrel',
     sa.Column('bag_id', sa.Integer(), nullable=False),
     sa.Column('barrel_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['bag_id'], ['Session.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['bag_id'], ['Session.chat_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('bag_id', 'barrel_id')
     )
     op.create_table('SessionPlayer',
@@ -55,7 +53,7 @@ def upgrade() -> None:
     sa.Column('role', sa.VARCHAR(length=45), nullable=False),
     sa.Column('card_number', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['player_id'], ['Player.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['session_id'], ['Session.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['session_id'], ['Session.chat_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('session_id', 'player_id')
     )
     op.create_table('CardCell',
