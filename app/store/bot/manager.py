@@ -5,6 +5,7 @@ from logging import getLogger
 
 from app.store.vk_api.dataclasses import Message, Update
 from app.russian_loto.models import GameSession
+from app.store.russian_loto.accessor import CARD_AMOUNT
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
@@ -36,7 +37,6 @@ class BotManager:
             re.fullmatch(f"({self.BOT_MENTION} )?(стоп) (лото) *(!)? *", update.object.body.lower()) is None
         )) << 3
         command_flags = stop_loto | join_loto | start_loto | greetings
-        print(command_flags)
 
         match command_flags:
             case Commands.greetings.value:
@@ -52,8 +52,9 @@ class BotManager:
             case Commands.join_loto.value:
                 player_id = update.object.user_id
                 peer_id = update.object.peer_id
+                message_id = update.object.message_id
                 if player_id != peer_id:
-                    await self.russian_loto.add_players(player_id, peer_id)
+                    await self.russian_loto.add_players(player_id, peer_id, message_id)
             case Commands.stop_loto.value:
                 pass
             case _:
@@ -72,11 +73,14 @@ class RussianLoto:
             await self.app.store.loto_games.add_lead_to_session(session_id, lead_id)
             await self.app.store.loto_games.set_session_status(peer_id, "adding players")
 
-    async def add_players(self, player_id, peer_id):
+    async def add_players(self, player_id, peer_id, message_id):
         session: GameSession = await self.app.store.loto_games.get_session_by_chat_id(peer_id)
-        print(session)
-        if session and session.type == "adding players":
-            pass
+        if session and session.status == "adding players":
+            card_number = await self.app.store.loto_games.get_random_free_card(session.chat_id)
+            if card_number:
+                await self.app.store.loto_games.add_player_to_session(session.chat_id, player_id, card_number)
+            else:
+                msg = f"Вы не можете участвовать, поскольку в игре может быть до {CARD_AMOUNT} карт."
 
     async def fill_bag(self):
         pass

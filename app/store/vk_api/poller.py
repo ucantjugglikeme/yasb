@@ -46,6 +46,7 @@ class Poller:
                             user_id=raw_update["object"]["message"]["from_id"],
                             body=raw_update["object"]["message"]["text"],
                             peer_id=raw_update["object"]["message"]["peer_id"],
+                            message_id=raw_update["object"]["message"]["conversation_message_id"]
                         )
                     ) for raw_update in raw_updates if (raw_update["type"] == "message_new")
                 ]

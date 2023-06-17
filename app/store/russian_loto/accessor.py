@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
+from random import shuffle, choice
 
-from sqlalchemy import select, update, ChunkedIteratorResult
+from sqlalchemy import select, update, and_, ChunkedIteratorResult
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql.functions import func
@@ -11,6 +12,8 @@ from app.base.base_accessor import BaseAccessor
 
 if TYPE_CHECKING:
     from app.web.app import Application
+
+CARD_AMOUNT = 24
 
 
 # TODO: test this
@@ -27,7 +30,7 @@ class RussianLotoAccessor(BaseAccessor):
                 await add_session.execute(query_add_session)
                 await add_session.commit()
                 session_id = chat_id
-                msg = "Игра начата! Чтобы участвовать, отправьте \"%2B\"."
+                msg = "Игра начата! Чтобы играть, отправьте \"%2B\"."
             except IntegrityError as e:
                 session_id = None
                 msg = "Игра уже была начата. Чтобы начать новую игру, необходимо завершить текущую."
@@ -74,19 +77,27 @@ class RussianLotoAccessor(BaseAccessor):
         role = "player"
         query_add_player = insert(SessionPlayerModel).values(
             session_id=session_id, player_id=player_id, role=role, card_number=card_number
-        ).on_duplicate_key_update(role=func.IF(
+        ).on_duplicate_key_update(card_number=func.ifnull(
+            SessionPlayerModel.card_number, card_number
+        ), role=func.IF(
             SessionPlayerModel.role == "lead", "leadplayer", SessionPlayerModel.role
         ))
 
         async with self.app.database.session() as add_session:
             try:
-                await add_session.execute(query_add_player)
+                smth = await add_session.execute(query_add_player)
+                print(smth)
                 await add_session.commit()
+                return
             except IntegrityError as e:
                 self.logger.exception("Creating new player", exc_info=e)
-                await self.create_player_profile(session_id, player_id)
-                await add_session.execute(query_add_player)
-                await add_session.commit()
+                await add_session.rollback()
+
+        await self.create_player_profile(session_id, player_id)
+        async with self.app.database.session() as new_add_session:
+            smth = await new_add_session.execute(query_add_player)
+            print(smth)
+            await new_add_session.commit()
 
     async def set_session_status(self, chat_id: int, new_status):
         query_update_session = update(GameSessionModel).where(GameSessionModel.chat_id == chat_id).values(
@@ -97,8 +108,26 @@ class RussianLotoAccessor(BaseAccessor):
             await update_session.execute(query_update_session)
             await update_session.commit()
 
-    async def get_random_free_card(self, chat_id: int):
-        pass
+    # allocated_card_numbers = select card_number from sessionplayer where card_number not null and session_id == peer_i
+    async def get_random_free_card(self, chat_id: int) -> Optional[int]:
+        card_numbers = [x for x in range(1, CARD_AMOUNT + 1)]
+        query_get_cards = select(SessionPlayerModel.card_number).where(
+            and_(SessionPlayerModel.card_number.isnot(None), SessionPlayerModel.session_id == chat_id)
+        )
+
+        async with self.app.database.session() as get_session:
+            res: ChunkedIteratorResult = await get_session.execute(query_get_cards)
+            result = res.scalars().all()
+            await get_session.commit()
+
+        allocated_card_numbers = [card_number for card_number in result]
+        free_card_numbers = list(set(card_numbers) - set(allocated_card_numbers))
+        shuffle(free_card_numbers)
+        try:
+            random_free_card = choice(free_card_numbers)
+        except IndexError:
+            random_free_card = None
+        return random_free_card
 
     async def get_session_by_chat_id(self, chat_id) -> Optional[GameSession]:
         query_get_session = select(GameSessionModel).where(GameSessionModel.chat_id == chat_id)
