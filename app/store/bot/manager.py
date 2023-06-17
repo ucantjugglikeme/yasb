@@ -4,6 +4,7 @@ import re
 from logging import getLogger
 
 from app.store.vk_api.dataclasses import Message, Update
+from app.russian_loto.models import GameSession
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
@@ -46,9 +47,13 @@ class BotManager:
                 lead_id = update.object.user_id
                 peer_id = update.object.peer_id
                 game_type = re.sub("\D", "", update.object.body)
-                await self.russian_loto.start_session(lead_id, peer_id, game_type)
+                if lead_id != peer_id:
+                    await self.russian_loto.start_session(lead_id, peer_id, game_type)
             case Commands.join_loto.value:
-                pass
+                player_id = update.object.user_id
+                peer_id = update.object.peer_id
+                if player_id != peer_id:
+                    await self.russian_loto.add_players(player_id, peer_id)
             case Commands.stop_loto.value:
                 pass
             case _:
@@ -65,9 +70,13 @@ class RussianLoto:
         await self.app.store.vk_api.send_message(Message(user_id=lead_id, text=response), peer_id)
         if session_id:
             await self.app.store.loto_games.add_lead_to_session(session_id, lead_id)
+            await self.app.store.loto_games.set_session_status(peer_id, "adding players")
 
-    async def add_players(self):
-        pass
+    async def add_players(self, player_id, peer_id):
+        session: GameSession = await self.app.store.loto_games.get_session_by_chat_id(peer_id)
+        print(session)
+        if session and session.type == "adding players":
+            pass
 
     async def fill_bag(self):
         pass

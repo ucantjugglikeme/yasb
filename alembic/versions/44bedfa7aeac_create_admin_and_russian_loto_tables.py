@@ -1,8 +1,8 @@
 """Create admin and Russian Loto tables
 
-Revision ID: 5440d471787c
+Revision ID: 44bedfa7aeac
 Revises: 
-Create Date: 2023-06-16 22:21:06.357860
+Create Date: 2023-06-17 13:50:52.336964
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '5440d471787c'
+revision = '44bedfa7aeac'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -26,7 +26,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('email')
     )
     op.create_table('Player',
-    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=False, nullable=False),
     sa.Column('name', sa.VARCHAR(length=45), nullable=False),
     sa.Column('times_won', sa.Integer(), nullable=False),
     sa.Column('times_led', sa.Integer(), nullable=False),
@@ -34,7 +34,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('Session',
-    sa.Column('chat_id', sa.Integer(), nullable=False),
+    sa.Column('chat_id', sa.Integer(), autoincrement=False, nullable=False),
     sa.Column('type', sa.VARCHAR(length=45), nullable=False),
     sa.Column('status', sa.VARCHAR(length=45), nullable=False),
     sa.Column('start_date', sa.DATETIME(), nullable=False),
@@ -42,10 +42,11 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('chat_id')
     )
     op.create_table('Barrel',
+    sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('bag_id', sa.Integer(), nullable=False),
-    sa.Column('barrel_id', sa.Integer(), nullable=False),
+    sa.Column('barrel_number', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['bag_id'], ['Session.chat_id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('bag_id', 'barrel_id')
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('SessionPlayer',
     sa.Column('session_id', sa.Integer(), nullable=False),
@@ -66,7 +67,7 @@ def upgrade() -> None:
     sa.Column('is_covered', sa.BOOLEAN(), nullable=False),
     sa.ForeignKeyConstraint(['player_id'], ['SessionPlayer.player_id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['session_id'], ['SessionPlayer.session_id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', 'session_id', 'player_id')
+    sa.PrimaryKeyConstraint('id')
     )
     # ### end Alembic commands ###
 

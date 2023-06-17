@@ -34,8 +34,9 @@ class Player:
 
 @dataclass
 class Barrel:
+    id: int
     bag_id: int
-    barrel_id: int
+    barrel_number: int
 
 
 @dataclass
@@ -59,7 +60,7 @@ class CardCell:
 
 class GameSessionModel(db):
     __tablename__ = "Session"
-    chat_id = Column(Integer, primary_key=True)
+    chat_id = Column(Integer, primary_key=True, autoincrement=False)
     type = Column(VARCHAR(45), nullable=False, default="simple")
     status = Column(VARCHAR(45), nullable=False, default="started")
     start_date = Column(DATETIME, nullable=False)
@@ -74,7 +75,7 @@ class GameSessionModel(db):
 
 class PlayerModel(db):
     __tablename__ = "Player"
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=False)
     name = Column(VARCHAR(45), nullable=False)
     times_won = Column(Integer, nullable=False, default=0)
     times_led = Column(Integer, nullable=False, default=0)
@@ -88,11 +89,12 @@ class PlayerModel(db):
 
 class BarrelModel(db):
     __tablename__ = "Barrel"
-    bag_id = Column(Integer, ForeignKey("Session.chat_id", ondelete="CASCADE"), primary_key=True)
-    barrel_id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True)
+    bag_id = Column(Integer, ForeignKey("Session.chat_id", ondelete="CASCADE"), nullable=False)
+    barrel_number = Column(Integer, nullable=False)
 
     def __repr__(self) -> str:
-        return f"<BarrelModel(bag_id='{self.bag_id}', barrel_id='{self.barrel_id}')>"
+        return f"<BarrelModel(id='{self.id}', bag_id='{self.bag_id}', barrel_number='{self.barrel_number}')>"
 
 
 class SessionPlayerModel(db):
@@ -101,7 +103,7 @@ class SessionPlayerModel(db):
     player_id = Column(Integer, ForeignKey("Player.id", ondelete="CASCADE"), primary_key=True)
     role = Column(VARCHAR(45), nullable=False, default="lead")
     card_number = Column(Integer, nullable=True)
-    card_cell = relationship("CardCellModel")
+    # card_cell = relationship("CardCellModel")
 
     def __repr__(self) -> str:
         return f"<SessionPlayerModel(session_id='{self.session_id}', player_id='{self.player_id}', " \
@@ -111,14 +113,17 @@ class SessionPlayerModel(db):
 class CardCellModel(db):
     __tablename__ = "CardCell"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(Integer, ForeignKey("SessionPlayer.session_id", ondelete="CASCADE"), primary_key=True)
-    player_id = Column(Integer, ForeignKey("SessionPlayer.player_id", ondelete="CASCADE"), primary_key=True)
+    session_id = Column(Integer, ForeignKey("SessionPlayer.session_id", ondelete="CASCADE"), nullable=False)
+    player_id = Column(Integer, ForeignKey("SessionPlayer.player_id", ondelete="CASCADE"), nullable=False)
     row_index = Column(Integer, nullable=False)
     cell_index = Column(Integer, nullable=False)
     barrel_number = Column(Integer, nullable=True)
     is_covered = Column(BOOLEAN, nullable=False, default=False)
 
+    session = relationship("SessionPlayerModel", foreign_keys=[session_id])
+    player = relationship("SessionPlayerModel", foreign_keys=[player_id])
+
     def __repr__(self) -> str:
-        return f"<CardCellModel(session_id='{self.session_id}', player_id='{self.player_id}', " \
+        return f"<CardCellModel(id='{self.id}', session_id='{self.session_id}', player_id='{self.player_id}', " \
                f"row_index='{self.row_index}', cell_index='{self.cell_index}', barrel_number='{self.barrel_number}', " \
                f"is_covered='{self.is_covered}')>"

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import select, literal_column, ChunkedIteratorResult
+from sqlalchemy import select, update, ChunkedIteratorResult
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql.functions import func
@@ -88,8 +88,30 @@ class RussianLotoAccessor(BaseAccessor):
                 await add_session.execute(query_add_player)
                 await add_session.commit()
 
-    async def get_random_free_card(self, chat_id):
+    async def set_session_status(self, chat_id: int, new_status):
+        query_update_session = update(GameSessionModel).where(GameSessionModel.chat_id == chat_id).values(
+            status=new_status
+        )
+
+        async with self.app.database.session() as update_session:
+            await update_session.execute(query_update_session)
+            await update_session.commit()
+
+    async def get_random_free_card(self, chat_id: int):
         pass
 
-    async def get_session_by_chat_id(self, chat_id):
-        pass
+    async def get_session_by_chat_id(self, chat_id) -> Optional[GameSession]:
+        query_get_session = select(GameSessionModel).where(GameSessionModel.chat_id == chat_id)
+
+        async with self.app.database.session() as get_session:
+            res: ChunkedIteratorResult = await get_session.execute(query_get_session)
+            result = res.scalar()
+            await get_session.commit()
+
+        if result:
+            return GameSession(
+                chat_id=result.chat_id, start_date=result.start_date, last_event_date=result.last_event_date,
+                type=result.type, status=result.status
+            )
+        return result
+
