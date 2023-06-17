@@ -27,7 +27,7 @@ class RussianLotoAccessor(BaseAccessor):
                 await add_session.execute(query_add_session)
                 await add_session.commit()
                 session_id = chat_id
-                msg = "Игра начата! Чтобы участвовать, отправьте \"+\"."
+                msg = "Игра начата! Чтобы участвовать, отправьте \"%2B\"."
             except IntegrityError as e:
                 session_id = None
                 msg = "Игра уже была начата. Чтобы начать новую игру, необходимо завершить текущую."

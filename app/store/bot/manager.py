@@ -62,9 +62,9 @@ class RussianLoto:
 
     async def start_session(self, lead_id, peer_id, game_type):
         session_id, response = await self.app.store.loto_games.create_new_session(peer_id, game_type)
-        print(session_id)
-        print(response)
-        await self.app.store.loto_games.add_lead_to_session(session_id, lead_id)
+        await self.app.store.vk_api.send_message(Message(user_id=lead_id, text=response), peer_id)
+        if session_id:
+            await self.app.store.loto_games.add_lead_to_session(session_id, lead_id)
 
     async def add_players(self):
         pass
