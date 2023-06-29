@@ -4,7 +4,7 @@ import re
 from logging import getLogger
 
 from app.store.vk_api.dataclasses import Message, Update
-from app.russian_loto.models import GameSession
+from app.russian_loto.models import GameSession, SessionPlayer
 from app.store.russian_loto.accessor import CARD_AMOUNT
 
 if typing.TYPE_CHECKING:
@@ -56,7 +56,10 @@ class BotManager:
                 if player_id != peer_id:
                     await self.russian_loto.add_players(player_id, peer_id, message_id)
             case Commands.stop_loto.value:
-                pass
+                user_id = update.object.user_id
+                peer_id = update.object.peer_id
+                if user_id != peer_id:
+                    await self.russian_loto.close_session(user_id, peer_id)
             case _:
                 pass
 
@@ -79,6 +82,8 @@ class RussianLoto:
             card_number = await self.app.store.loto_games.get_random_free_card(session.chat_id)
             if card_number:
                 await self.app.store.loto_games.add_player_to_session(session.chat_id, player_id, card_number)
+                await self.app.store.vk_api.post_doc(peer_id, player_id, "doc")
+                msg = f"Вы в игре. Номер вашей карты - {card_number}"
             else:
                 msg = f"Вы не можете участвовать, поскольку в игре может быть до {CARD_AMOUNT} карт."
 
@@ -88,8 +93,21 @@ class RussianLoto:
     async def lead_move(self):
         pass
 
-    async def close_session(self):
-        pass
+    async def close_session(self, user_id, peer_id):
+        leader: SessionPlayer = await self.app.store.loto_games.get_session_leader(peer_id)
+        if not leader:
+            return
+
+        if leader.player_id == user_id:
+            await self.app.store.loto_games.delete_session(leader.session_id)
+            await self.app.store.vk_api.send_message(Message(user_id=user_id, text="Игра окончена досрочно!"), peer_id)
+        else:
+            player_data = await self.app.store.vk_api.get_chat_user(leader.session_id, user_id)
+            if player_data["is_admin"]:
+                await self.app.store.loto_games.delete_session(leader.session_id)
+                await self.app.store.vk_api.send_message(Message(
+                    user_id=user_id, text="Игра окончена досрочно!"
+                ), peer_id)
 
 
 class Commands(enum.Enum):

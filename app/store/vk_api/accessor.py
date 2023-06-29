@@ -125,13 +125,34 @@ class VkApiAccessor(BaseAccessor):
         ) as resp:
             data = (await resp.json())["response"]
             self.logger.info(data)
+            items = [
+                {"member_id": item["member_id"], "is_admin": "is_admin" in item}
+                for item in data["items"]
+            ]
             profiles = [
                 {"id": profile["id"], "first_name": profile["first_name"], "last_name": profile["last_name"]}
                 for profile in data["profiles"]
             ]
+            item = list(filter(lambda item: (item["member_id"] == user_id), items))[0]
             user = list(filter(lambda profile: (profile["id"] == user_id), profiles))[0]
+            user = item | user
             print(user)
             return user
+
+    async def post_doc(self, peer_id: int, user_id: int, doc_type: str = "doc"):
+        async with self.session.get(
+            self._build_query(
+                API_PATH,
+                "docs.getMessagesUploadServer",
+                params={
+                    "access_token": self.app.config.bot.token,
+                    "type": doc_type,
+                    "peer_id": peer_id
+                }
+            )
+        ) as resp:
+            data = (await resp.json())["response"]
+            self.logger.info(data)
 
 
 class VkApiFail(enum.Enum):

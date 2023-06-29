@@ -2,10 +2,11 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 from random import shuffle, choice
 
-from sqlalchemy import select, update, and_, ChunkedIteratorResult
+from sqlalchemy import select, update, delete, and_, ChunkedIteratorResult
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql.functions import func
+from sqlalchemy.engine.cursor import CursorResult
 
 from app.russian_loto.models import *
 from app.base.base_accessor import BaseAccessor
@@ -85,7 +86,7 @@ class RussianLotoAccessor(BaseAccessor):
 
         async with self.app.database.session() as add_session:
             try:
-                smth = await add_session.execute(query_add_player)
+                smth: CursorResult = await add_session.execute(query_add_player)
                 print(smth)
                 await add_session.commit()
                 return
@@ -144,3 +145,26 @@ class RussianLotoAccessor(BaseAccessor):
             )
         return result
 
+    async def get_session_leader(self, session_id) -> Optional[SessionPlayer]:
+        query_get_session_player = select(SessionPlayerModel).where(
+            and_(SessionPlayerModel.session_id == session_id, SessionPlayerModel.role.in_(("lead", "leadplayer")))
+        )
+
+        async with self.app.database.session() as get_session:
+            res: ChunkedIteratorResult = await get_session.execute(query_get_session_player)
+            result = res.scalar()
+            await get_session.commit()
+
+        if result:
+            return SessionPlayer(
+                session_id=result.session_id, player_id=result.player_id,
+                card_number=result.card_number, role=result.role
+            )
+        return result
+
+    async def delete_session(self, session_id):
+        query_delete_session = delete(GameSessionModel).where(GameSessionModel.chat_id == session_id)
+
+        async with self.app.database.session() as delete_session:
+            await delete_session.execute(query_delete_session)
+            await delete_session.commit()
