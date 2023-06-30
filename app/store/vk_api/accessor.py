@@ -1,4 +1,5 @@
 import enum
+import json
 import random
 import typing
 from typing import Optional
@@ -93,20 +94,27 @@ class VkApiAccessor(BaseAccessor):
                         updates = []
             return updates
 
-    async def send_message(self, message: Message, peer_id: int) -> None:
+    async def send_message(self, message: Message, peer_id: int, reply_id: Optional[int] = None) -> None:
         (destination, id_) = ("user", message.user_id) if message.user_id == peer_id else ("chat", peer_id - 2000000000)
         peer_id = peer_id if message.user_id != peer_id else -self.app.config.bot.group_id
+        params = {
+            f"{destination}_id": id_,
+            "random_id": random.randint(1, 2 ** 32),
+            "peer_id": peer_id,
+            "message": message.text,
+            "access_token": self.app.config.bot.token,
+        }
+        if reply_id:
+            params["forward"] = json.dumps({
+                "peer_id": peer_id,
+                "conversation_message_ids": [reply_id],
+                "is_reply": True
+            })
         async with self.session.get(
                 self._build_query(
                     API_PATH,
                     "messages.send",
-                    params={
-                        f"{destination}_id": id_,
-                        "random_id": random.randint(1, 2 ** 32),
-                        "peer_id": peer_id,
-                        "message": message.text,
-                        "access_token": self.app.config.bot.token,
-                    },
+                    params=params,
                 )
         ) as resp:
             data = await resp.json()

@@ -81,10 +81,10 @@ class RussianLoto:
             card_number = await self.app.store.loto_games.get_random_free_card(session.chat_id)
             if card_number:
                 await self.app.store.loto_games.add_player_to_session(session.chat_id, player_id, card_number)
-                await self.app.store.vk_api.post_doc(peer_id, player_id, "doc")
-                msg = f"Вы в игре. Номер вашей карты - {card_number}"
+                # await self.app.store.vk_api.post_doc(peer_id, player_id, "doc")
             else:
                 msg = f"Вы не можете участвовать, поскольку в игре может быть до {self.app.cards.cards_amount} карт."
+                await self.app.store.vk_api.send_message(Message(user_id=player_id, text=msg), peer_id, message_id)
 
     async def fill_bag(self):
         pass
