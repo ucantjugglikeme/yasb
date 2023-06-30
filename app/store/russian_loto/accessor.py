@@ -14,8 +14,6 @@ from app.base.base_accessor import BaseAccessor
 if TYPE_CHECKING:
     from app.web.app import Application
 
-CARD_AMOUNT = 24
-
 
 # TODO: test this
 class RussianLotoAccessor(BaseAccessor):
@@ -111,7 +109,7 @@ class RussianLotoAccessor(BaseAccessor):
 
     # allocated_card_numbers = select card_number from sessionplayer where card_number not null and session_id == peer_i
     async def get_random_free_card(self, chat_id: int) -> Optional[int]:
-        card_numbers = [x for x in range(1, CARD_AMOUNT + 1)]
+        card_numbers = [x for x in range(1, self.app.cards.cards_amount + 1)]
         query_get_cards = select(SessionPlayerModel.card_number).where(
             and_(SessionPlayerModel.card_number.isnot(None), SessionPlayerModel.session_id == chat_id)
         )

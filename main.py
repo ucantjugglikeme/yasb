@@ -7,6 +7,9 @@ if __name__ == "__main__":
         setup_app(
             config_path=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), "config.yml"
+            ),
+            card_config_path=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)), "app/store/bot/cards_config.yml"
             )
         )
     )

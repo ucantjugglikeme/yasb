@@ -5,7 +5,6 @@ from logging import getLogger
 
 from app.store.vk_api.dataclasses import Message, Update
 from app.russian_loto.models import GameSession, SessionPlayer
-from app.store.russian_loto.accessor import CARD_AMOUNT
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
@@ -85,7 +84,7 @@ class RussianLoto:
                 await self.app.store.vk_api.post_doc(peer_id, player_id, "doc")
                 msg = f"Вы в игре. Номер вашей карты - {card_number}"
             else:
-                msg = f"Вы не можете участвовать, поскольку в игре может быть до {CARD_AMOUNT} карт."
+                msg = f"Вы не можете участвовать, поскольку в игре может быть до {self.app.cards.cards_amount} карт."
 
     async def fill_bag(self):
         pass

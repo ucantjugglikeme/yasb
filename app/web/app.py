@@ -4,7 +4,7 @@ from aiohttp.web import (
     View as AiohttpView,
 )
 from typing import Optional
-from app.web.config import Config, setup_config
+from app.web.config import Config, CardsConfig, setup_config, setup_cards_config
 from app.web.logger import setup_logging
 from app.store import Store, setup_store
 from app.store.database.database import Database
@@ -19,6 +19,7 @@ from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
 class Application(AiohttpApplication):
     config: Optional[Config] = None
+    cards: Optional[CardsConfig] = None
     store: Optional[Store] = None
     database: Optional[Database] = None
 
@@ -52,9 +53,10 @@ class View(AiohttpView):
 app = Application()
 
 
-def setup_app(config_path: str):
+def setup_app(config_path: str, card_config_path: str):
     setup_logging(app)
     setup_config(app, config_path)
+    setup_cards_config(app, card_config_path)
     session_setup(app, EncryptedCookieStorage(app.config.session.key))
     setup_routes(app)
     setup_aiohttp_apispec(
