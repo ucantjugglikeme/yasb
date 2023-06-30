@@ -5,6 +5,7 @@ from random import shuffle, choice
 from sqlalchemy import select, update, delete, and_, ChunkedIteratorResult
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload, subqueryload
 from sqlalchemy.sql.functions import func
 from sqlalchemy.engine.cursor import CursorResult
 
@@ -101,7 +102,7 @@ class RussianLotoAccessor(BaseAccessor):
             print(smth)
             await new_add_session.commit()
 
-    async def add_player_card(self, session_id: int, player_id: int, card_number: int) -> bool:
+    async def add_player_card(self, session_id: int, player_id: int, card_number: int) -> list[CardCell]:
         card_cells = []
         player_card = [
             self.app.cards.cards[card_number - INDEX_OFFSET].r_1,
@@ -127,7 +128,18 @@ class RussianLotoAccessor(BaseAccessor):
                 self.logger.exception("Player has already received card", exc_info=e)
                 added = False
 
-        return added
+        if added:
+            new_player_card = [
+                CardCell(
+                    session_id=session_id, player_id=player_id,
+                    row_index=card_cell.row_index, cell_index=card_cell.cell_index,
+                    barrel_number=card_cell.barrel_number, is_covered=card_cell.is_covered
+                ) for card_cell in card_cells
+            ]
+        else:
+            new_player_card = []
+
+        return new_player_card
 
     async def set_session_status(self, chat_id: int, new_status):
         query_update_session = update(GameSessionModel).where(GameSessionModel.chat_id == chat_id).values(
@@ -190,6 +202,27 @@ class RussianLotoAccessor(BaseAccessor):
                 card_number=result.card_number, role=result.role
             )
         return result
+
+    async def get_session_and_player(self, session_id, player_id) -> (Player, SessionPlayer):
+        query_get_session_and_player = select(PlayerModel).where(
+            PlayerModel.id == player_id
+        ).options(joinedload(PlayerModel.session_player.and_(SessionPlayerModel.session_id == session_id)))
+
+        async with self.app.database.session() as get_session:
+            res: ChunkedIteratorResult = await get_session.execute(query_get_session_and_player)
+            result = res.scalar()
+            await get_session.commit()
+
+        print(result)
+        print(result.session_player)
+
+        return Player(
+            id=result.id, name=result.name,
+            times_won=result.times_won, times_led=result.times_led, times_played=result.times_played
+        ), SessionPlayer(
+            session_id=result.session_player[0].session_id, player_id=result.session_player[0].player_id,
+            card_number=result.session_player[0].card_number, role=result.session_player[0].role
+        )
 
     async def delete_session(self, session_id):
         query_delete_session = delete(GameSessionModel).where(GameSessionModel.chat_id == session_id)

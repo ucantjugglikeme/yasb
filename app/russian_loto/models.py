@@ -50,7 +50,7 @@ class SessionPlayer:
 
 @dataclass
 class CardCell:
-    id: int
+    # id: int
     session_id: int
     player_id: int
     row_index: int

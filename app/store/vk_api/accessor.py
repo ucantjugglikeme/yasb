@@ -147,7 +147,7 @@ class VkApiAccessor(BaseAccessor):
             print(user)
             return user
 
-    async def post_doc(self, peer_id: int, user_id: int, doc_type: str = "doc"):
+    async def post_doc(self, peer_id: int, doc_path: str, doc_type: str = "doc"):
         async with self.session.get(
             self._build_query(
                 API_PATH,
@@ -160,7 +160,10 @@ class VkApiAccessor(BaseAccessor):
             )
         ) as resp:
             data = (await resp.json())["response"]
+            upload_url = data["upload_url"]
             self.logger.info(data)
+
+        # async with self.session.post(upload_url, file=)
 
 
 class VkApiFail(enum.Enum):

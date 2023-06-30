@@ -5,6 +5,7 @@ from logging import getLogger
 
 from app.store.vk_api.dataclasses import Message, Update
 from app.russian_loto.models import GameSession, SessionPlayer
+from app.store.bot.picturbation import Picturbator
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
@@ -16,7 +17,7 @@ class BotManager:
         self.bot = None
         self.logger = getLogger("handler")
         self.russian_loto = RussianLoto(app)
-        self.BOT_MENTION = f"(\[club{self.app.config.bot.group_id}\|[@]?[а-яА-Яa-zA-Z_0-9 ]+\][,]?)"
+        self.bot_mention = f"(\[club{self.app.config.bot.group_id}\|[@]?[а-яА-Яa-zA-Z_0-9 ]+\][,]?)"
 
     async def handle_updates(self, updates: list[Update]):
         for update in updates:
@@ -27,16 +28,16 @@ class BotManager:
                     pass
 
     async def handle_new_message(self, update: Update):
-        greetings = int(not(re.fullmatch(f"({self.BOT_MENTION} )?Привет! *", update.object.body) is None))
+        greetings = int(not(re.fullmatch(f"({self.bot_mention} )?Привет! *", update.object.body) is None))
         start_loto = int(not(
-            re.fullmatch(f"({self.BOT_MENTION} )?(начать) (лото)( [1|2])? *(!)? *", update.object.body.lower()) is None
+            re.fullmatch(f"({self.bot_mention} )?(начать) (лото)( [1|2])? *(!)? *", update.object.body.lower()) is None
         )) << 1
         join_loto = int(not(re.fullmatch(f" *\+ *", update.object.body) is None)) << 2
         fill_bag = int(not(
-            re.fullmatch(f"({self.BOT_MENTION} )?(заполнить) (мешок) *(!)? *", update.object.body.lower()) is None
+            re.fullmatch(f"({self.bot_mention} )?(заполнить) (мешок) *(!)? *", update.object.body.lower()) is None
         )) << 3
         stop_loto = int(not (
-                re.fullmatch(f"({self.BOT_MENTION} )?(стоп) (лото) *(!)? *", update.object.body.lower()) is None
+                re.fullmatch(f"({self.bot_mention} )?(стоп) (лото) *(!)? *", update.object.body.lower()) is None
         )) << 4
         command_flags = stop_loto | join_loto | start_loto | greetings
 
@@ -71,6 +72,7 @@ class BotManager:
 class RussianLoto:
     def __init__(self, app: "Application"):
         self.app = app
+        self.picturbator = Picturbator(app)
         self.logger = getLogger("Russian Loto")
 
     async def start_session(self, lead_id, peer_id, game_type):
@@ -86,8 +88,11 @@ class RussianLoto:
             card_number = await self.app.store.loto_games.get_random_free_card(session.chat_id)
             if card_number:
                 await self.app.store.loto_games.add_player_to_session(session.chat_id, player_id, card_number)
-                await self.app.store.loto_games.add_player_card(session.chat_id, player_id, card_number)
-                # await self.app.store.vk_api.post_doc(peer_id, player_id, "doc")
+                player_card = await self.app.store.loto_games.add_player_card(session.chat_id, player_id, card_number)
+                if player_card:
+                    await self.picturbator.generate_card_picture(card_number, player_card)
+                    # TODO: add reply to player
+                    await self.app.store.vk_api.post_doc(peer_id, "doc_path", "doc")
             else:
                 msg = f"Вы не можете участвовать, поскольку в игре может быть до {self.app.cards.cards_amount} карт."
                 await self.app.store.vk_api.send_message(Message(user_id=player_id, text=msg), peer_id, message_id)

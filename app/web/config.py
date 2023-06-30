@@ -42,9 +42,9 @@ class Config:
 
 @dataclass
 class CardConfig:
-    r_1: list[int]
-    r_2: list[int]
-    r_3: list[int]
+    r_1: list[int | None]
+    r_2: list[int | None]
+    r_3: list[int | None]
 
 
 @dataclass
