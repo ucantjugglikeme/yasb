@@ -15,6 +15,9 @@ if TYPE_CHECKING:
     from app.web.app import Application
 
 
+INDEX_OFFSET = 1
+
+
 # TODO: test this
 class RussianLotoAccessor(BaseAccessor):
     async def create_new_session(self, chat_id: int, game_type: str) -> (Optional[int], str):
@@ -97,6 +100,34 @@ class RussianLotoAccessor(BaseAccessor):
             smth = await new_add_session.execute(query_add_player)
             print(smth)
             await new_add_session.commit()
+
+    async def add_player_card(self, session_id: int, player_id: int, card_number: int) -> bool:
+        card_cells = []
+        player_card = [
+            self.app.cards.cards[card_number - INDEX_OFFSET].r_1,
+            self.app.cards.cards[card_number - INDEX_OFFSET].r_2,
+            self.app.cards.cards[card_number - INDEX_OFFSET].r_3,
+        ]
+        for i, card_row in enumerate(player_card):
+            r_i_card_cells = [
+                CardCellModel(
+                    session_id=session_id, player_id=player_id,
+                    row_index=i + INDEX_OFFSET, cell_index=j + INDEX_OFFSET,
+                    barrel_number=value, is_covered=False
+                ) for j, value in enumerate(card_row)
+            ]
+            card_cells.extend(r_i_card_cells)
+
+        async with self.app.database.session() as add_session:
+            try:
+                add_session.add_all(card_cells)
+                await add_session.commit()
+                added = True
+            except IntegrityError as e:
+                self.logger.exception("Player has already received card", exc_info=e)
+                added = False
+
+        return added
 
     async def set_session_status(self, chat_id: int, new_status):
         query_update_session = update(GameSessionModel).where(GameSessionModel.chat_id == chat_id).values(

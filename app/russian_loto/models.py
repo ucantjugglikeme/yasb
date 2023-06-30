@@ -9,7 +9,8 @@ from sqlalchemy import (
     VARCHAR,
     DATETIME,
     BOOLEAN,
-    ForeignKey
+    ForeignKey,
+    UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 
@@ -122,6 +123,8 @@ class CardCellModel(db):
 
     session = relationship("SessionPlayerModel", foreign_keys=[session_id])
     player = relationship("SessionPlayerModel", foreign_keys=[player_id])
+
+    __table_args__ = (UniqueConstraint("session_id", "player_id", "row_index", "cell_index", name="_card_uc_"), )
 
     def __repr__(self) -> str:
         return f"<CardCellModel(id='{self.id}', session_id='{self.session_id}', player_id='{self.player_id}', " \

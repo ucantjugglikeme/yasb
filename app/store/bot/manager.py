@@ -32,9 +32,12 @@ class BotManager:
             re.fullmatch(f"({self.BOT_MENTION} )?(начать) (лото)( [1|2])? *(!)? *", update.object.body.lower()) is None
         )) << 1
         join_loto = int(not(re.fullmatch(f" *\+ *", update.object.body) is None)) << 2
-        stop_loto = int(not(
-            re.fullmatch(f"({self.BOT_MENTION} )?(стоп) (лото) *(!)? *", update.object.body.lower()) is None
+        fill_bag = int(not(
+            re.fullmatch(f"({self.BOT_MENTION} )?(заполнить) (мешок) *(!)? *", update.object.body.lower()) is None
         )) << 3
+        stop_loto = int(not (
+                re.fullmatch(f"({self.BOT_MENTION} )?(стоп) (лото) *(!)? *", update.object.body.lower()) is None
+        )) << 4
         command_flags = stop_loto | join_loto | start_loto | greetings
 
         match command_flags:
@@ -54,6 +57,8 @@ class BotManager:
                 message_id = update.object.message_id
                 if player_id != peer_id:
                     await self.russian_loto.add_players(player_id, peer_id, message_id)
+            case Commands.fill_bag.value:
+                pass
             case Commands.stop_loto.value:
                 user_id = update.object.user_id
                 peer_id = update.object.peer_id
@@ -81,6 +86,7 @@ class RussianLoto:
             card_number = await self.app.store.loto_games.get_random_free_card(session.chat_id)
             if card_number:
                 await self.app.store.loto_games.add_player_to_session(session.chat_id, player_id, card_number)
+                await self.app.store.loto_games.add_player_card(session.chat_id, player_id, card_number)
                 # await self.app.store.vk_api.post_doc(peer_id, player_id, "doc")
             else:
                 msg = f"Вы не можете участвовать, поскольку в игре может быть до {self.app.cards.cards_amount} карт."
@@ -110,7 +116,8 @@ class RussianLoto:
 
 
 class Commands(enum.Enum):
-    greetings = 0b0001
-    start_loto = 0b0010
-    join_loto = 0b0100
-    stop_loto = 0b1000
+    greetings = 0b00001
+    start_loto = 0b00010
+    join_loto = 0b00100
+    fill_bag = 0b01000
+    stop_loto = 0b10000
