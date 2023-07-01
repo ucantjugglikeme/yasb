@@ -1,6 +1,7 @@
 import typing
 import enum
 import re
+from random import sample as rand_sample
 from logging import getLogger
 
 from app.store.vk_api.dataclasses import Message, Update
@@ -9,6 +10,8 @@ from app.store.bot.picturbation import Picturbator
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
+
+BARRELS_PER_STEP = 10
 
 
 class BotManager:
@@ -68,7 +71,10 @@ class BotManager:
                 if user_id != peer_id:
                     await self.russian_loto.fill_bag(user_id, peer_id, message_id)
             case Commands.pull_barrel.value:
-                pass
+                user_id = update.object.user_id
+                peer_id = update.object.peer_id
+                if user_id != peer_id:
+                    await self.russian_loto.lead_move(user_id, peer_id)
             case Commands.stop_loto.value:
                 user_id = update.object.user_id
                 peer_id = update.object.peer_id
@@ -140,8 +146,28 @@ class RussianLoto:
                   f"Для участия игроки отправляют \"%2B\"."
             await self.app.store.vk_api.send_message(Message(user_id=user_id, text=msg), peer_id, message_id)
 
-    async def lead_move(self, user_id, peer_id, ):
-        pass
+    async def lead_move(self, user_id, peer_id):
+        session, session_lead = await self.app.store.loto_games.get_session_and_lead(peer_id)
+        # TODO: check session status
+        if not (session and session_lead):
+            return
+
+        game_type = session.type
+        barrels = await self.app.store.loto_games.get_barrels_by_bag_id(session_lead.session_id)
+        # TODO: handle this
+        if len(barrels) == BARRELS_PER_STEP:  # simply last step
+            pass
+
+        barrel_nums = [barrel.barrel_number for barrel in barrels]
+        picked_barrel_nums = rand_sample(barrel_nums, BARRELS_PER_STEP)
+        await self.app.store.loto_games.pull_barrels_from_bag(session_lead.session_id, picked_barrel_nums)
+        await self.app.store.loto_games.cover_card_cells(session_lead.session_id, picked_barrel_nums)
+
+        card_cells = await self.app.store.loto_games.get_card_cells_from_session(session_lead.session_id)
+        players = await self.app.store.loto_games.get_session_players(session_lead.session_id)
+        # TODO: split card cells by player's ids and get player's numbers
+        # TODO: check if someone won (based on game_type) and if no barrels left -> update session status
+        # TODO: send game statistics and message: should include picked barrels, remaining barrels, previous paragraph
 
     async def close_session(self, user_id, peer_id):
         leader: SessionPlayer = await self.app.store.loto_games.get_session_leader(peer_id)

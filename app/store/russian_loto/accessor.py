@@ -154,6 +154,16 @@ class RussianLotoAccessor(BaseAccessor):
             await update_session.execute(query_update_session)
             await update_session.commit()
 
+    # NEW
+    async def cover_card_cells(self, session_id: int, picked_barrel_numbers: list[int]):
+        query_update_cells = update(CardCellModel).where(
+            and_(CardCellModel.session_id == session_id, CardCellModel.barrel_number.in_(picked_barrel_numbers))
+        ).values(is_covered=True)
+
+        async with self.app.database.session() as update_session:
+            await update_session.execute(query_update_cells)
+            await update_session.commit()
+
     async def get_random_free_card(self, chat_id: int) -> Optional[int]:
         card_numbers = [x for x in range(1, self.app.cards.cards_amount + 1)]
         query_get_cards = select(SessionPlayerModel.card_number).where(
@@ -240,6 +250,67 @@ class RussianLotoAccessor(BaseAccessor):
             session_id=result.session_player[0].session_id, player_id=result.session_player[0].player_id,
             card_number=result.session_player[0].card_number, role=result.session_player[0].role
         )
+
+    # NEW
+    async def get_session_and_lead(self, session_id) -> tuple[GameSession | None, SessionPlayer | None]:
+        query_get_session_and_player = select(GameSessionModel).where(
+            GameSessionModel.chat_id == session_id
+        ).options(joinedload(GameSessionModel.session_player.and_(SessionPlayerModel.role.in_(["lead", "leadplayer"]))))
+
+        async with self.app.database.session() as get_session:
+            res: ChunkedIteratorResult = await get_session.execute(query_get_session_and_player)
+            result = res.scalar()
+            await get_session.commit()
+
+        if result:
+            return GameSession(
+                chat_id=result.chat_id, start_date=result.start_date,
+                last_event_date=result.last_event_date, type=result.type, status=result.status
+            ), SessionPlayer(
+                session_id=result.session_player[0].session_id, player_id=result.session_player[0].player_id,
+                card_number=result.session_player[0].card_number, role=result.session_player[0].role
+            )
+        return None, None
+
+    # NEW
+    async def get_barrels_by_bag_id(self, bag_id) -> list[Barrel]:
+        query_get_barrels = select(BarrelModel).where(BarrelModel.bag_id == bag_id)
+
+        async with self.app.database.session() as get_session:
+            res: ChunkedIteratorResult = await get_session.execute(query_get_barrels)
+            result = res.scalars().all()
+            await get_session.commit()
+
+        if result:
+            return [Barrel(id=player.id, bag_id=player.bag_id, barrel_number=player.barrel_number) for player in result]
+        return []
+
+    # NEW
+    async def get_card_cells_from_session(self, session_id) -> list[CardCell]:
+        query_get_card_cells = select(CardCellModel).where(CardCellModel.session_id == session_id)
+
+        async with self.app.database.session() as get_session:
+            res: ChunkedIteratorResult = await get_session.execute(query_get_card_cells)
+            result = res.scalars().all()
+            await get_session.commit()
+
+        return [
+            CardCell(
+                session_id=session_id, player_id=card_cell.player_id,
+                row_index=card_cell.row_index, cell_index=card_cell.cell_index,
+                barrel_number=card_cell.barrel_number, is_covered=card_cell.is_covered
+            ) for card_cell in result
+        ]
+
+    # NEW
+    async def pull_barrels_from_bag(self, bag_id: int, picked_numbers: list[int]):
+        query_delete_barrels = delete(BarrelModel).where(
+            and_(BarrelModel.bag_id == bag_id, BarrelModel.barrel_number.in_(picked_numbers))
+        )
+
+        async with self.app.database.session() as delete_session:
+            await delete_session.execute(query_delete_barrels)
+            await delete_session.commit()
 
     async def delete_session(self, session_id):
         query_delete_session = delete(GameSessionModel).where(GameSessionModel.chat_id == session_id)
