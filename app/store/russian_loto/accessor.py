@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 INDEX_OFFSET = 1
 
 
-# TODO: test this
 class RussianLotoAccessor(BaseAccessor):
     async def create_new_session(self, chat_id: int, game_type: str) -> (Optional[int], str):
         start_date = datetime.now()
@@ -89,7 +88,6 @@ class RussianLotoAccessor(BaseAccessor):
         async with self.app.database.session() as add_session:
             try:
                 smth: CursorResult = await add_session.execute(query_add_player)
-                print(smth)
                 await add_session.commit()
                 return
             except IntegrityError as e:
@@ -99,7 +97,6 @@ class RussianLotoAccessor(BaseAccessor):
         await self.create_player_profile(session_id, player_id)
         async with self.app.database.session() as new_add_session:
             smth = await new_add_session.execute(query_add_player)
-            print(smth)
             await new_add_session.commit()
 
     async def add_player_card(self, session_id: int, player_id: int, card_number: int) -> list[CardCell]:
@@ -140,6 +137,19 @@ class RussianLotoAccessor(BaseAccessor):
             new_player_card = []
 
         return new_player_card
+
+    async def add_barrels_to_session(self, session_id) -> bool:
+        barrels = [BarrelModel(bag_id=session_id, barrel_number=n) for n in range(1, 91)]
+
+        async with self.app.database.session() as add_session:
+            try:
+                add_session.add_all(barrels)
+                await add_session.commit()
+            except IntegrityError as e:
+                self.logger.exception("Bag has already been filled with barrels", exc_info=e)
+                return False
+
+        return True
 
     async def set_session_status(self, chat_id: int, new_status):
         query_update_session = update(GameSessionModel).where(GameSessionModel.chat_id == chat_id).values(
@@ -203,6 +213,23 @@ class RussianLotoAccessor(BaseAccessor):
             )
         return result
 
+    async def get_session_players(self, session_id) -> list[SessionPlayer]:
+        query_get_session_player = select(SessionPlayerModel).where(SessionPlayerModel.session_id == session_id)
+
+        async with self.app.database.session() as get_session:
+            res: ChunkedIteratorResult = await get_session.execute(query_get_session_player)
+            result = res.scalars().all()
+            await get_session.commit()
+
+        if result:
+            return [
+                SessionPlayer(
+                    session_id=player.session_id, player_id=player.player_id,
+                    card_number=player.card_number, role=player.role
+                ) for player in result
+            ]
+        return []
+
     async def get_session_and_player(self, session_id, player_id) -> (Player, SessionPlayer):
         query_get_session_and_player = select(PlayerModel).where(
             PlayerModel.id == player_id
@@ -212,9 +239,6 @@ class RussianLotoAccessor(BaseAccessor):
             res: ChunkedIteratorResult = await get_session.execute(query_get_session_and_player)
             result = res.scalar()
             await get_session.commit()
-
-        print(result)
-        print(result.session_player)
 
         return Player(
             id=result.id, name=result.name,

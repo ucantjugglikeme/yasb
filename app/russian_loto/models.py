@@ -94,6 +94,8 @@ class BarrelModel(db):
     bag_id = Column(Integer, ForeignKey("Session.chat_id", ondelete="CASCADE"), nullable=False)
     barrel_number = Column(Integer, nullable=False)
 
+    __table_args__ = (UniqueConstraint("bag_id", "barrel_number", name="_barrel_uc_"),)
+
     def __repr__(self) -> str:
         return f"<BarrelModel(id='{self.id}', bag_id='{self.bag_id}', barrel_number='{self.barrel_number}')>"
 

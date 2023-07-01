@@ -1,8 +1,8 @@
 """Admin + Russian Loto tables
 
-Revision ID: ba51c4be3276
+Revision ID: 6dae131372b2
 Revises: 
-Create Date: 2023-06-30 21:23:56.588234
+Create Date: 2023-07-01 21:00:22.473420
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'ba51c4be3276'
+revision = '6dae131372b2'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -46,7 +46,8 @@ def upgrade() -> None:
     sa.Column('bag_id', sa.Integer(), nullable=False),
     sa.Column('barrel_number', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['bag_id'], ['Session.chat_id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('bag_id', 'barrel_number', name='_barrel_uc_')
     )
     op.create_table('SessionPlayer',
     sa.Column('session_id', sa.Integer(), nullable=False),
