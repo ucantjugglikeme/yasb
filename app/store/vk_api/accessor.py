@@ -94,7 +94,9 @@ class VkApiAccessor(BaseAccessor):
                         updates = []
             return updates
 
-    async def send_message(self, message: Message, peer_id: int, reply_id: Optional[int] = None) -> None:
+    async def send_message(
+            self, message: Message, peer_id: int, reply_id: Optional[int] = None, attachment: str = ""
+    ) -> None:
         (destination, id_) = ("user", message.user_id) if message.user_id == peer_id else ("chat", peer_id - 2000000000)
         peer_id = peer_id if message.user_id != peer_id else -self.app.config.bot.group_id
         params = {
@@ -102,6 +104,7 @@ class VkApiAccessor(BaseAccessor):
             "random_id": random.randint(1, 2 ** 32),
             "peer_id": peer_id,
             "message": message.text,
+            "attachment": attachment,
             "access_token": self.app.config.bot.token,
         }
         if reply_id:
@@ -122,14 +125,14 @@ class VkApiAccessor(BaseAccessor):
 
     async def get_chat_user(self, chat_id: int, user_id: int) -> dict[str, int | str]:
         async with self.session.get(
-            self._build_query(
-                API_PATH,
-                "messages.getConversationMembers",
-                params={
-                    "access_token": self.app.config.bot.token,
-                    "peer_id": chat_id
-                }
-            )
+                self._build_query(
+                    API_PATH,
+                    "messages.getConversationMembers",
+                    params={
+                        "access_token": self.app.config.bot.token,
+                        "peer_id": chat_id
+                    }
+                )
         ) as resp:
             data = (await resp.json())["response"]
             self.logger.info(data)
@@ -147,23 +150,45 @@ class VkApiAccessor(BaseAccessor):
             print(user)
             return user
 
-    async def post_doc(self, peer_id: int, doc_path: str, doc_type: str = "doc"):
+    async def post_doc(self, peer_id: int, doc_path: str, doc_type: str = "doc") -> str:
         async with self.session.get(
-            self._build_query(
-                API_PATH,
-                "docs.getMessagesUploadServer",
-                params={
-                    "access_token": self.app.config.bot.token,
-                    "type": doc_type,
-                    "peer_id": peer_id
-                }
-            )
+                self._build_query(
+                    API_PATH,
+                    "docs.getMessagesUploadServer",
+                    params={
+                        "access_token": self.app.config.bot.token,
+                        "type": doc_type,
+                        "peer_id": peer_id
+                    }
+                )
         ) as resp:
             data = (await resp.json())["response"]
-            upload_url = data["upload_url"]
             self.logger.info(data)
+            upload_url = data["upload_url"]
 
-        # async with self.session.post(upload_url, file=)
+        async with self.session.post(upload_url, data={"file": open(doc_path, "rb")}) as resp:
+            data = (await resp.json())
+            self.logger.info(data)
+            file = data["file"]
+
+        async with self.session.get(
+                self._build_query(
+                    API_PATH,
+                    "docs.save",
+                    params={
+                        "access_token": self.app.config.bot.token,
+                        "file": file
+                    }
+                )
+        ) as resp:
+            data = (await resp.json())["response"]
+            self.logger.info(data)
+            type_ = data["type"]
+            id_ = data[type_]["id"]
+            owner_id = data[type_]["owner_id"]
+            doc_ref = f"{type_}{owner_id}_{id_}_{self.app.config.bot.token}"
+
+        return doc_ref
 
 
 class VkApiFail(enum.Enum):

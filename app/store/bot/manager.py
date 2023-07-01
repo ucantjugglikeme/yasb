@@ -90,9 +90,13 @@ class RussianLoto:
                 await self.app.store.loto_games.add_player_to_session(session.chat_id, player_id, card_number)
                 player_card = await self.app.store.loto_games.add_player_card(session.chat_id, player_id, card_number)
                 if player_card:
-                    await self.picturbator.generate_card_picture(card_number, player_card)
-                    # TODO: add reply to player
-                    await self.app.store.vk_api.post_doc(peer_id, "doc_path", "doc")
+                    doc_path = await self.picturbator.generate_card_picture(card_number, player_card)
+                    doc_ref = await self.app.store.vk_api.post_doc(peer_id, doc_path, doc_type="doc")
+                    msg = f"Вы участвуете. Номер вашей карты - {card_number}."
+                    await self.app.store.vk_api.send_message(
+                        Message(user_id=player_id, text=msg), peer_id, message_id, doc_ref
+                    )
+                    await self.picturbator.delete_card_picture(doc_path)
             else:
                 msg = f"Вы не можете участвовать, поскольку в игре может быть до {self.app.cards.cards_amount} карт."
                 await self.app.store.vk_api.send_message(Message(user_id=player_id, text=msg), peer_id, message_id)

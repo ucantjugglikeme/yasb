@@ -1,8 +1,10 @@
+from datetime import datetime
 from pandas import DataFrame
 from pandas.io.formats.style import Styler
 from dataframe_image import export
 import os
 import typing
+
 from logging import getLogger
 
 from app.russian_loto.models import CardCell, SessionPlayer
@@ -46,7 +48,9 @@ class Picturbator:
         self.app = app
         self.logger = getLogger("handler")
 
-    async def generate_card_picture(self, card_number, card: list[CardCell]):
+    async def generate_card_picture(self, card_number, card: list[CardCell]) -> str:
+        """По данным о переданной карте формирует изображение и возвращает путь к файлу"""
+
         card_numbers = [
             [
                 str(card.barrel_number) if card.barrel_number else ""
@@ -88,5 +92,11 @@ class Picturbator:
 
         df_styled.set_caption(f'Карта №{card_number}<br>{session_player.role} - {player.name}')
 
-        # TODO: add unique names
-        export(df_styled, "images/df_styled.png")
+        unique_pic_name = "_".join(["doc", str(session_player.session_id), str(session_player.player_id)])
+        pic_path = f"images/{unique_pic_name}.png"
+        export(df_styled, pic_path)
+
+        return pic_path
+
+    async def delete_card_picture(self, card_path):
+        os.remove(card_path)

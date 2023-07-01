@@ -4,13 +4,13 @@ from random import shuffle, choice
 
 from sqlalchemy import select, update, delete, and_, ChunkedIteratorResult
 from sqlalchemy.dialects.mysql import insert
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload, subqueryload
-from sqlalchemy.sql.functions import func
 from sqlalchemy.engine.cursor import CursorResult
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.functions import func
 
-from app.russian_loto.models import *
 from app.base.base_accessor import BaseAccessor
+from app.russian_loto.models import *
 
 if TYPE_CHECKING:
     from app.web.app import Application
