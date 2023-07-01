@@ -36,10 +36,13 @@ class BotManager:
         fill_bag = int(not(
             re.fullmatch(f"({self.bot_mention} )?(заполнить) (мешок) *(!)? *", update.object.body.lower()) is None
         )) << 3
+        pull_barrel = int(not (
+                re.fullmatch(f"({self.bot_mention} )?(ход) *(!)? *", update.object.body.lower()) is None
+        )) << 4
         stop_loto = int(not (
                 re.fullmatch(f"({self.bot_mention} )?(стоп) (лото) *(!)? *", update.object.body.lower()) is None
-        )) << 4
-        command_flags = stop_loto | fill_bag | join_loto | start_loto | greetings
+        )) << 5
+        command_flags = stop_loto | pull_barrel | fill_bag | join_loto | start_loto | greetings
 
         match command_flags:
             case Commands.greetings.value:
@@ -64,6 +67,8 @@ class BotManager:
                 message_id = update.object.message_id
                 if user_id != peer_id:
                     await self.russian_loto.fill_bag(user_id, peer_id, message_id)
+            case Commands.pull_barrel.value:
+                pass
             case Commands.stop_loto.value:
                 user_id = update.object.user_id
                 peer_id = update.object.peer_id
@@ -80,11 +85,15 @@ class RussianLoto:
         self.logger = getLogger("Russian Loto")
 
     async def start_session(self, lead_id, peer_id, game_type):
-        session_id, response = await self.app.store.loto_games.create_new_session(peer_id, game_type)
-        await self.app.store.vk_api.send_message(Message(user_id=lead_id, text=response), peer_id)
+        session_id = await self.app.store.loto_games.create_new_session(peer_id, game_type)
         if session_id:
             await self.app.store.loto_games.add_lead_to_session(session_id, lead_id)
             await self.app.store.loto_games.set_session_status(peer_id, "adding players")
+            msg = "Игра начата! Чтобы играть, отправьте \"%2B\". После того, как игроки будут набраны, " \
+                  "ведущий сможет заполнить мешок бочонками командой \"Заполнить мешок!\"."
+        else:
+            msg = "Игра уже была начата. Чтобы начать новую игру, необходимо завершить текущую."
+        await self.app.store.vk_api.send_message(Message(user_id=lead_id, text=msg), peer_id)
 
     async def add_players(self, player_id, peer_id, message_id):
         session: GameSession = await self.app.store.loto_games.get_session_by_chat_id(peer_id)
@@ -121,14 +130,17 @@ class RussianLoto:
             await self.app.store.loto_games.set_session_status(peer_id, "filling bag")
             filled = await self.app.store.loto_games.add_barrels_to_session(peer_id)
             if filled:
-                await self.app.store.vk_api.send_message(Message(user_id=user_id, text="Мешочек заполнен!"), peer_id)
+                await self.app.store.vk_api.send_message(Message(
+                    user_id=user_id,
+                    text="Мешок заполнен! С этого момента ведущий вытаскивает из мешка бочонки сообщением \"Ход!\"."
+                ), peer_id)
                 await self.app.store.loto_games.set_session_status(peer_id, "handling moves")
         elif lead.player_id == user_id:
             msg = f"Для игры необходимо минимум 2 игрока. Пожалуйста, соберите команду. " \
                   f"Для участия игроки отправляют \"%2B\"."
             await self.app.store.vk_api.send_message(Message(user_id=user_id, text=msg), peer_id, message_id)
 
-    async def lead_move(self):
+    async def lead_move(self, user_id, peer_id, ):
         pass
 
     async def close_session(self, user_id, peer_id):
@@ -149,8 +161,9 @@ class RussianLoto:
 
 
 class Commands(enum.Enum):
-    greetings = 0b00001
-    start_loto = 0b00010
-    join_loto = 0b00100
-    fill_bag = 0b01000
-    stop_loto = 0b10000
+    greetings = 0b000001
+    start_loto = 0b000010
+    join_loto = 0b000100
+    fill_bag = 0b001000
+    pull_barrel = 0b010000
+    stop_loto = 0b100000

@@ -4,7 +4,6 @@ from random import shuffle, choice
 
 from sqlalchemy import select, update, delete, and_, ChunkedIteratorResult
 from sqlalchemy.dialects.mysql import insert
-from sqlalchemy.engine.cursor import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.functions import func
@@ -20,7 +19,7 @@ INDEX_OFFSET = 1
 
 
 class RussianLotoAccessor(BaseAccessor):
-    async def create_new_session(self, chat_id: int, game_type: str) -> (Optional[int], str):
+    async def create_new_session(self, chat_id: int, game_type: str) -> Optional[int]:
         start_date = datetime.now()
         type_ = "short" if game_type == "2" else "simple"
         query_add_session = insert(GameSessionModel).values(
@@ -32,13 +31,11 @@ class RussianLotoAccessor(BaseAccessor):
                 await add_session.execute(query_add_session)
                 await add_session.commit()
                 session_id = chat_id
-                msg = "Игра начата! Чтобы играть, отправьте \"%2B\"."
             except IntegrityError as e:
                 session_id = None
-                msg = "Игра уже была начата. Чтобы начать новую игру, необходимо завершить текущую."
-                self.logger.exception(msg, exc_info=e)
+                self.logger.exception("Session has already been started", exc_info=e)
                 await add_session.rollback()
-        return session_id, msg
+        return session_id
 
     async def create_player_profile(self, chat_id: int, player_id: int):
         player_data = await self.app.store.vk_api.get_chat_user(chat_id, player_id)
@@ -72,9 +69,6 @@ class RussianLotoAccessor(BaseAccessor):
             await new_add_session.execute(query_add_lead)
             await new_add_session.commit()
 
-    # insert into sessionplayer values ( 224, 123, "lead", null);
-    # insert into sessionplayer values ( 224, 123, "player", card_number) on duplicate key
-    # update role = if(role = "lead", "leadplayer", sessionplayer.role);
     async def add_player_to_session(self, session_id: int, player_id: int, card_number: int):
         role = "player"
         query_add_player = insert(SessionPlayerModel).values(
@@ -87,7 +81,7 @@ class RussianLotoAccessor(BaseAccessor):
 
         async with self.app.database.session() as add_session:
             try:
-                smth: CursorResult = await add_session.execute(query_add_player)
+                await add_session.execute(query_add_player)
                 await add_session.commit()
                 return
             except IntegrityError as e:
@@ -96,7 +90,7 @@ class RussianLotoAccessor(BaseAccessor):
 
         await self.create_player_profile(session_id, player_id)
         async with self.app.database.session() as new_add_session:
-            smth = await new_add_session.execute(query_add_player)
+            await new_add_session.execute(query_add_player)
             await new_add_session.commit()
 
     async def add_player_card(self, session_id: int, player_id: int, card_number: int) -> list[CardCell]:
@@ -160,7 +154,6 @@ class RussianLotoAccessor(BaseAccessor):
             await update_session.execute(query_update_session)
             await update_session.commit()
 
-    # allocated_card_numbers = select card_number from sessionplayer where card_number not null and session_id == peer_i
     async def get_random_free_card(self, chat_id: int) -> Optional[int]:
         card_numbers = [x for x in range(1, self.app.cards.cards_amount + 1)]
         query_get_cards = select(SessionPlayerModel.card_number).where(
