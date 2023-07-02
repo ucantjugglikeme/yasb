@@ -3,6 +3,7 @@ from pandas import DataFrame
 from pandas.io.formats.style import Styler
 from dataframe_image import export
 import os
+import sys
 import typing
 
 from logging import getLogger
@@ -39,7 +40,7 @@ class Picturbator:
         }
     ]
     BARREL_IMG_PATH = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "images/barrel.png"
+        os.path.dirname(sys.modules["__main__"].__file__), "images/barrel.png"
     ).replace("\\", "/")
     COLUMNS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
     INDEXES = ["1", "2", "3"]
@@ -71,7 +72,7 @@ class Picturbator:
             [card.is_covered for card in list(filter(lambda card_cell: card_cell.row_index == 3, card))]
         ]
 
-        t_styles = self.TABLE_STYLES
+        t_styles = self.TABLE_STYLES.copy()
         df = DataFrame(card_numbers, columns=self.COLUMNS, index=self.INDEXES)
         for i, row in enumerate(card_numbers):
             for j, cell in enumerate(row):

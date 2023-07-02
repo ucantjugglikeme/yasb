@@ -148,7 +148,6 @@ class RussianLoto:
             await self.app.store.vk_api.send_message(Message(user_id=user_id, text=msg), peer_id, message_id)
 
     async def lead_move(self, user_id, peer_id):
-        # TODO: fix covering and remaining moves info
         session, session_lead = await self.app.store.loto_games.get_session_and_lead(peer_id)
         if not (session and session_lead):
             return
@@ -209,7 +208,7 @@ class RussianLoto:
                 msg = f"Игра окончена! Номера за этот ход: {barrels_nums}."
             await self.app.store.loto_games.delete_session(session_lead.session_id)
         else:
-            msg = f"Номера за этот ход: {barrels_nums}. Осталось {9 - len(barrels)/10} ходов."
+            msg = f"Номера за этот ход: {barrels_nums}. Осталось {len(barrels)//10 - 1} ходов."
 
         attachment = ",".join(doc_refs)
         await self.app.store.vk_api.send_message(
