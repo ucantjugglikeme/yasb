@@ -14,7 +14,6 @@ from app.russian_loto.models import *
 if TYPE_CHECKING:
     from app.web.app import Application
 
-
 INDEX_OFFSET = 1
 
 
@@ -154,6 +153,20 @@ class RussianLotoAccessor(BaseAccessor):
             await update_session.execute(query_update_session)
             await update_session.commit()
 
+    async def set_players_status(self, players_ids: list[int], played=False, won=False, lead=False):
+        updates = {}
+        if played:
+            updates["times_played"] = PlayerModel.times_played + 1
+        if won:
+            updates["times_won"] = PlayerModel.times_won + 1
+        if lead:
+            updates["times_led"] = PlayerModel.times_led + 1
+
+        query_update_players = update(PlayerModel).where(PlayerModel.id.in_(players_ids)).values(updates)
+        async with self.app.database.session() as update_session:
+            await update_session.execute(query_update_players)
+            await update_session.commit()
+
     # NEW
     async def cover_card_cells(self, session_id: int, picked_barrel_numbers: list[int]):
         query_update_cells = update(CardCellModel).where(
@@ -229,6 +242,23 @@ class RussianLotoAccessor(BaseAccessor):
                 SessionPlayer(
                     session_id=player.session_id, player_id=player.player_id,
                     card_number=player.card_number, role=player.role
+                ) for player in result
+            ]
+        return []
+
+    async def get_players_by_ids(self, players_ids: list[int]) -> list[Player]:
+        query_get_players = select(PlayerModel).where(PlayerModel.id.in_(players_ids))
+
+        async with self.app.database.session() as get_session:
+            res: ChunkedIteratorResult = await get_session.execute(query_get_players)
+            result = res.scalars().all()
+            await get_session.commit()
+
+        if result:
+            return [
+                Player(
+                    id=player.id, name=player.name,
+                    times_won=player.times_won, times_led=player.times_led, times_played=player.times_played
                 ) for player in result
             ]
         return []

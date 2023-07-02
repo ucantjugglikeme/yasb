@@ -31,13 +31,14 @@ class BotManager:
                     pass
 
     async def handle_new_message(self, update: Update):
-        greetings = int(not(re.fullmatch(f"({self.bot_mention} )?Привет! *", update.object.body) is None))
-        start_loto = int(not(
-            re.fullmatch(f"({self.bot_mention} )?(начать) (лото)( [1|2])? *(!)? *", update.object.body.lower()) is None
+        greetings = int(not (re.fullmatch(f"({self.bot_mention} )?Привет! *", update.object.body) is None))
+        start_loto = int(not (
+                re.fullmatch(f"({self.bot_mention} )?(начать) (лото)( [1|2])? *(!)? *",
+                             update.object.body.lower()) is None
         )) << 1
-        join_loto = int(not(re.fullmatch(f" *\+ *", update.object.body) is None)) << 2
-        fill_bag = int(not(
-            re.fullmatch(f"({self.bot_mention} )?(заполнить) (мешок) *(!)? *", update.object.body.lower()) is None
+        join_loto = int(not (re.fullmatch(f" *\+ *", update.object.body) is None)) << 2
+        fill_bag = int(not (
+                re.fullmatch(f"({self.bot_mention} )?(заполнить) (мешок) *(!)? *", update.object.body.lower()) is None
         )) << 3
         pull_barrel = int(not (
                 re.fullmatch(f"({self.bot_mention} )?(ход) *(!)? *", update.object.body.lower()) is None
@@ -115,7 +116,7 @@ class RussianLoto:
                     await self.app.store.vk_api.send_message(
                         Message(user_id=player_id, text=msg), peer_id, message_id, doc_ref
                     )
-                    await self.picturbator.delete_card_picture(doc_path)
+                    # await self.picturbator.delete_card_picture(doc_path)
             else:
                 msg = f"Вы не можете участвовать, поскольку в игре может быть до {self.app.cards.cards_amount} карт."
                 await self.app.store.vk_api.send_message(Message(user_id=player_id, text=msg), peer_id, message_id)
@@ -147,16 +148,15 @@ class RussianLoto:
             await self.app.store.vk_api.send_message(Message(user_id=user_id, text=msg), peer_id, message_id)
 
     async def lead_move(self, user_id, peer_id):
+        # TODO: fix covering and remaining moves info
         session, session_lead = await self.app.store.loto_games.get_session_and_lead(peer_id)
-        # TODO: check session status
         if not (session and session_lead):
+            return
+        if session.status != "handling moves" or session_lead.player_id != user_id:
             return
 
         game_type = session.type
         barrels = await self.app.store.loto_games.get_barrels_by_bag_id(session_lead.session_id)
-        # TODO: handle this
-        if len(barrels) == BARRELS_PER_STEP:  # simply last step
-            pass
 
         barrel_nums = [barrel.barrel_number for barrel in barrels]
         picked_barrel_nums = rand_sample(barrel_nums, BARRELS_PER_STEP)
@@ -165,9 +165,56 @@ class RussianLoto:
 
         card_cells = await self.app.store.loto_games.get_card_cells_from_session(session_lead.session_id)
         players = await self.app.store.loto_games.get_session_players(session_lead.session_id)
-        # TODO: split card cells by player's ids and get player's numbers
-        # TODO: check if someone won (based on game_type) and if no barrels left -> update session status
-        # TODO: send game statistics and message: should include picked barrels, remaining barrels, previous paragraph
+
+        players_cards = [
+            (player, list(filter(lambda card_cell: card_cell.player_id == player.player_id, card_cells)))
+            for player in players
+        ]
+        players_ids_stats = {player.player_id: False for player in players}
+
+        doc_refs = []
+        for player, card in players_cards:
+            doc_path = await self.picturbator.generate_card_picture(player.card_number, card)
+            doc_ref = await self.app.store.vk_api.post_doc(player.session_id, doc_path, doc_type="doc")
+            doc_refs.append(doc_ref)
+            match game_type:
+                case "simple":
+                    covered_cells = list(filter(lambda card_cell: card_cell.is_covered is True, card))
+                    if len(covered_cells) == 15:
+                        players_ids_stats[player.player_id] = True
+                case "short":
+                    covered_cells = [
+                        len(list(filter(
+                            lambda card_cell: card_cell.is_covered is True and card_cell.row_index == i, card
+                        ))) for i in range(1, 4)
+                    ]
+                    if covered_cells.count(5):
+                        players_ids_stats[player.player_id] = True
+
+        barrels_nums = ", ".join(list(map(str, picked_barrel_nums)))
+        if len(barrels) == BARRELS_PER_STEP or True in players_ids_stats.values():  # last step or win
+            await self.app.store.loto_games.set_session_status(session.chat_id, "summing up")
+            winners_ids = [player_id for player_id, stat in players_ids_stats.items() if stat is True]
+            players_ids = [player_id for player_id, stat in players_ids_stats.items() if stat is False]
+            await self.app.store.loto_games.set_players_status(winners_ids, played=True, won=True)
+            await self.app.store.loto_games.set_players_status(players_ids, played=True)
+            await self.app.store.loto_games.set_players_status([session_lead.player_id], lead=True)
+
+            winners = await self.app.store.loto_games.get_players_by_ids(winners_ids)
+
+            winners_str = ", ".join([f"[id{winner.id}|{winner.name}]" for winner in winners])
+            if winners:
+                msg = f"Игра окончена! Номера за этот ход: {barrels_nums}. Победители: {winners_str}"
+            else:
+                msg = f"Игра окончена! Номера за этот ход: {barrels_nums}."
+            await self.app.store.loto_games.delete_session(session_lead.session_id)
+        else:
+            msg = f"Номера за этот ход: {barrels_nums}. Осталось {9 - len(barrels)/10} ходов."
+
+        attachment = ",".join(doc_refs)
+        await self.app.store.vk_api.send_message(
+            Message(user_id=session_lead.player_id, text=msg), session.chat_id, attachment=attachment
+        )
 
     async def close_session(self, user_id, peer_id):
         leader: SessionPlayer = await self.app.store.loto_games.get_session_leader(peer_id)
