@@ -147,7 +147,6 @@ class VkApiAccessor(BaseAccessor):
             item = list(filter(lambda item: (item["member_id"] == user_id), items))[0]
             user = list(filter(lambda profile: (profile["id"] == user_id), profiles))[0]
             user = item | user
-            print(user)
             return user
 
     async def post_doc(self, peer_id: int, doc_path: str, doc_type: str = "doc") -> str:
@@ -164,10 +163,11 @@ class VkApiAccessor(BaseAccessor):
         ) as resp:
             data = (await resp.json())["response"]
             self.logger.info(data)
+            self.logger.info(f"{{'file':'{doc_path}'}}")
             upload_url = data["upload_url"]
 
         async with self.session.post(upload_url, data={"file": open(doc_path, "rb")}) as resp:
-            data = (await resp.json())
+            data = (await resp.json(content_type=None))
             self.logger.info(data)
             file = data["file"]
 

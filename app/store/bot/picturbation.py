@@ -94,7 +94,9 @@ class Picturbator:
         df_styled.set_caption(f'Карта №{card_number}<br>{session_player.role} - {player.name}')
 
         unique_pic_name = "_".join(["doc", str(session_player.session_id), str(session_player.player_id)])
-        pic_path = f"images/{unique_pic_name}.png"
+        pic_path = os.path.join(
+            os.path.dirname(sys.modules["__main__"].__file__), f"images/{unique_pic_name}.png"
+        ).replace("\\", "/")
         export(df_styled, pic_path)
 
         return pic_path
