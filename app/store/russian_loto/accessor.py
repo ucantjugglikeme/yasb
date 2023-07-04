@@ -230,7 +230,9 @@ class RussianLotoAccessor(BaseAccessor):
         return result
 
     async def get_session_players(self, session_id) -> list[SessionPlayer]:
-        query_get_session_player = select(SessionPlayerModel).where(SessionPlayerModel.session_id == session_id)
+        query_get_session_player = select(SessionPlayerModel).where(
+            and_(SessionPlayerModel.session_id == session_id, SessionPlayerModel.role.in_(("leadplayer", "player")))
+        )
 
         async with self.app.database.session() as get_session:
             res: ChunkedIteratorResult = await get_session.execute(query_get_session_player)

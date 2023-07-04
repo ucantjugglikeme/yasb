@@ -123,15 +123,11 @@ class RussianLoto:
 
     async def fill_bag(self, user_id, peer_id, message_id):
         players = await self.app.store.loto_games.get_session_players(peer_id)
-        lead = next((player for player in players if player.role in ["leadplayer", "lead"]), None)
+        lead = await self.app.store.loto_games.get_session_leader(peer_id)
         if not lead:
             return
 
-        match lead.role:
-            case "leadplayer":
-                min_amount = 2
-            case _:
-                min_amount = 3
+        min_amount = 2
 
         if len(players) >= min_amount and lead.player_id == user_id:
             await self.app.store.loto_games.set_session_status(peer_id, "filling bag")
@@ -208,7 +204,7 @@ class RussianLoto:
                 msg = f"Игра окончена! Номера за этот ход: {barrels_nums}."
             await self.app.store.loto_games.delete_session(session_lead.session_id)
         else:
-            msg = f"Номера за этот ход: {barrels_nums}. Осталось {len(barrels)//10 - 1} ходов."
+            msg = f"Номера за этот ход: {barrels_nums}. Ходов осталось: {len(barrels)//10 - 1}."
 
         attachment = ",".join(doc_refs)
         await self.app.store.vk_api.send_message(
