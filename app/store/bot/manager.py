@@ -111,7 +111,7 @@ class RussianLoto:
                 player_card = await self.app.store.loto_games.add_player_card(session.chat_id, player_id, card_number)
                 if player_card:
                     doc_path = await self.picturbator.generate_card_picture(card_number, player_card)
-                    doc_ref = await self.app.store.vk_api.post_doc(peer_id, doc_path, doc_type="doc")
+                    doc_ref = await self.app.store.vk_api.post_doc(doc_path)
                     msg = f"Вы участвуете. Номер вашей карты - {card_number}."
                     await self.app.store.vk_api.send_message(
                         Message(user_id=player_id, text=msg), peer_id, message_id, doc_ref
@@ -170,7 +170,7 @@ class RussianLoto:
         doc_refs = []
         for player, card in players_cards:
             doc_path = await self.picturbator.generate_card_picture(player.card_number, card)
-            doc_ref = await self.app.store.vk_api.post_doc(player.session_id, doc_path, doc_type="doc")
+            doc_ref = await self.app.store.vk_api.post_doc(doc_path)
             doc_refs.append(doc_ref)
             match game_type:
                 case "simple":

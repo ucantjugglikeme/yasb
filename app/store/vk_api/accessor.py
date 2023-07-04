@@ -149,15 +149,14 @@ class VkApiAccessor(BaseAccessor):
             user = item | user
             return user
 
-    async def post_doc(self, peer_id: int, doc_path: str, doc_type: str = "doc") -> str:
+    async def post_doc(self, doc_path: str) -> str:
         async with self.session.get(
                 self._build_query(
                     API_PATH,
-                    "docs.getMessagesUploadServer",
+                    "docs.getWallUploadServer",
                     params={
                         "access_token": self.app.config.bot.token,
-                        "type": doc_type,
-                        "peer_id": peer_id
+                        "group_id": self.app.config.bot.group_id
                     }
                 )
         ) as resp:
