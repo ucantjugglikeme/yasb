@@ -165,10 +165,6 @@ class RussianLoto:
         card_cells = await self.app.store.loto_games.get_card_cells_from_session(session_lead.session_id)
         players = await self.app.store.loto_games.get_session_players(session_lead.session_id)
 
-        # TODO: prevent unwanted barrels and card cells deleting
-        if not card_cells:
-            return
-
         players_cards = [
             (player, list(filter(lambda card_cell: card_cell.player_id == player.player_id, card_cells)))
             for player in players
@@ -224,7 +220,6 @@ class RussianLoto:
         if not leader:
             return
 
-        # TODO: replace on delete cascade with delete by session id in card cells table
         if leader.player_id == user_id:
             await self.app.store.loto_games.delete_session(leader.session_id)
             await self.app.store.vk_api.send_message(Message(user_id=user_id, text="Игра окончена досрочно!"), peer_id)

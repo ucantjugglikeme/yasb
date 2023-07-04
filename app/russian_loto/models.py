@@ -10,7 +10,8 @@ from sqlalchemy import (
     DATETIME,
     BOOLEAN,
     ForeignKey,
-    UniqueConstraint
+    UniqueConstraint,
+    ForeignKeyConstraint
 )
 from sqlalchemy.orm import relationship
 
@@ -116,17 +117,20 @@ class SessionPlayerModel(db):
 class CardCellModel(db):
     __tablename__ = "CardCell"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(Integer, ForeignKey("SessionPlayer.session_id", ondelete="CASCADE"), nullable=False)
-    player_id = Column(Integer, ForeignKey("SessionPlayer.player_id", ondelete="CASCADE"), nullable=False)
+    session_id = Column(Integer, nullable=False)
+    player_id = Column(Integer, nullable=False)
     row_index = Column(Integer, nullable=False)
     cell_index = Column(Integer, nullable=False)
     barrel_number = Column(Integer, nullable=True)
     is_covered = Column(BOOLEAN, nullable=False, default=False)
 
-    session = relationship("SessionPlayerModel", foreign_keys=[session_id])
-    player = relationship("SessionPlayerModel", foreign_keys=[player_id])
-
-    __table_args__ = (UniqueConstraint("session_id", "player_id", "row_index", "cell_index", name="_card_uc_"), )
+    __table_args__ = (
+        UniqueConstraint("session_id", "player_id", "row_index", "cell_index", name="_card_uc_"),
+        ForeignKeyConstraint(
+            ["session_id", "player_id"], ["SessionPlayer.session_id", "SessionPlayer.player_id"],
+            ondelete="CASCADE", name="_card_fk_"
+        )
+    )
 
     def __repr__(self) -> str:
         return f"<CardCellModel(id='{self.id}', session_id='{self.session_id}', player_id='{self.player_id}', " \
