@@ -94,11 +94,13 @@ class RussianLoto:
 
     async def start_session(self, lead_id, peer_id, game_type):
         session_id = await self.app.store.loto_games.create_new_session(peer_id, game_type)
+        game_type_msg = "быстрая" if game_type == "2" else "простая"
         if session_id:
             await self.app.store.loto_games.add_lead_to_session(session_id, lead_id)
             await self.app.store.loto_games.set_session_status(peer_id, "adding players")
-            msg = "Игра начата! Чтобы играть, отправьте \"%2B\". После того, как игроки будут набраны, " \
-                  "ведущий сможет заполнить мешок бочонками командой \"Заполнить мешок!\"."
+            msg = f"Игра начата! Тип игры: {game_type_msg}. Чтобы играть, отправьте \"%2B\". " \
+                  f"После того, как игроки будут набраны, ведущий сможет заполнить мешок бочонками командой " \
+                  f"\"Заполнить мешок!\"."
         else:
             msg = "Игра уже была начата. Чтобы начать новую игру, необходимо завершить текущую."
         await self.app.store.vk_api.send_message(Message(user_id=lead_id, text=msg), peer_id)
@@ -194,20 +196,39 @@ class RussianLoto:
             await self.app.store.loto_games.set_players_status(players_ids, played=True)
             await self.app.store.loto_games.set_players_status([session_lead.player_id], lead=True)
 
-            winners = await self.app.store.loto_games.get_players_by_ids(winners_ids)
-
-            winners_str = ", ".join([f"[id{winner.id}|{winner.name}]" for winner in winners])
-            if winners:
-                msg = f"Игра окончена! Номера за этот ход: {barrels_nums}. Победители: {winners_str}"
+            lead_upd = (await self.app.store.loto_games.get_players_by_ids([session_lead.player_id]))[0]
+            winners_upd = await self.app.store.loto_games.get_players_by_ids(winners_ids)
+            players_upd = await self.app.store.loto_games.get_players_by_ids(players_ids)
+            winners_str = ", ".join([f"[id{winner.id}|{winner.name}]" for winner in winners_upd])
+            players_stats = "%0A".join([
+                                f"- [id{winner_upd.id}|{winner_upd.name}] - сыграно раз: {winner_upd.times_played}, "
+                                f"игр проведено: {winner_upd.times_led}, побед: {winner_upd.times_won}."
+                                for winner_upd in winners_upd
+                            ]) + "%0A" + "%0A".join([
+                                f"- [id{player_upd.id}|{player_upd.name}] - сыграно раз: {player_upd.times_played}, "
+                                f"игр проведено: {player_upd.times_led}, побед: {player_upd.times_won}."
+                                for player_upd in players_upd
+                            ])
+            if session_lead.role == "lead":
+                players_stats += f"%0A- [id{lead_upd.id}|{lead_upd.name}] - сыграно раз: {lead_upd.times_played}, " \
+                                 f"игр проведено: {lead_upd.times_led}, побед: {lead_upd.times_won}."
+            game_type = "простая" if session.type == "simple" else "быстрая"
+            if winners_upd:
+                msg = f"Игра окончена! Тип игры: {game_type}.%0A- номера за этот ход: {barrels_nums}." \
+                      f"%0A- победители: {winners_str}.%0A- ведущий игры: [id{lead_upd.id}|{lead_upd.name}]." \
+                      f"%0AСтатистика игроков:%0A{players_stats}"
             else:
-                msg = f"Игра окончена! Номера за этот ход: {barrels_nums}."
+                msg = f"Игра окончена! Тип игры: {game_type}.%0A- номера за этот ход: {barrels_nums}.%0A" \
+                      f"- ведущий игры: [id{lead_upd.id}|{lead_upd.name}]." \
+                      f"%0AСтатистика игроков:%0A{players_stats}"
             await self.app.store.loto_games.delete_session(session_lead.session_id)
         else:
-            msg = f"Номера за этот ход: {barrels_nums}. Ходов осталось: {len(barrels) // self.BARRELS_PER_STEP - 1}."
+            msg = f"Номера за этот ход: {barrels_nums}.%0AХодов осталось: {len(barrels) // self.BARRELS_PER_STEP - 1}."
 
         attachment = ",".join(doc_refs)
         await self.app.store.vk_api.send_message(
-            Message(user_id=session_lead.player_id, text=msg), session.chat_id, attachment=attachment
+            Message(user_id=session_lead.player_id, text=msg), session.chat_id, attachment=attachment,
+            disable_mentions=True
         )
 
     async def close_session(self, user_id, peer_id):

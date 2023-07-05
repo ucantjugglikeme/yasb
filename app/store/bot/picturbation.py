@@ -86,7 +86,8 @@ class Picturbator:
             card[0].session_id, card[0].player_id
         )
 
-        df_styled.set_caption(f'Карта №{card_number}<br>{session_player.role} - {player.name}')
+        player_role = "Ведущий, игрок" if session_player.role == "leadplayer" else "Игрок"
+        df_styled.set_caption(f'Карта №{card_number}<br>{player_role} - {player.name}')
 
         unique_pic_name = "_".join(["doc", str(session_player.session_id), str(session_player.player_id)])
         pic_path = os.path.join(self.MAIN_DIR, f"images/{unique_pic_name}.png").replace("\\", "/")

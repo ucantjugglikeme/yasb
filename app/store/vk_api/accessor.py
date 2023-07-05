@@ -98,7 +98,8 @@ class VkApiAccessor(BaseAccessor):
             return updates
 
     async def send_message(
-            self, message: Message, peer_id: int, reply_id: Optional[int] = None, attachment: str = ""
+            self, message: Message, peer_id: int, reply_id: Optional[int] = None, attachment="",
+            disable_mentions=False
     ) -> None:
         (destination, id_) = ("user", message.user_id) if message.user_id == peer_id else ("chat", peer_id - 2000000000)
         peer_id = peer_id if message.user_id != peer_id else -self.app.config.bot.group_id
@@ -108,6 +109,7 @@ class VkApiAccessor(BaseAccessor):
             "peer_id": peer_id,
             "message": message.text,
             "attachment": attachment,
+            "disable_mentions": int(disable_mentions),
             "access_token": self.app.config.bot.token,
         }
         if reply_id:
@@ -156,10 +158,11 @@ class VkApiAccessor(BaseAccessor):
         async with self.session.get(
                 self._build_query(
                     self.API_PATH,
-                    "docs.getWallUploadServer",
+                    "docs.getMessagesUploadServer",
                     params={
                         "access_token": self.app.config.bot.token,
-                        "group_id": self.app.config.bot.group_id
+                        "type": "doc",
+                        "peer_id": self.app.config.bot.admin_id  # VK moment
                     }
                 )
         ) as resp:
