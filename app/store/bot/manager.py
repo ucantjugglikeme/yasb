@@ -11,16 +11,29 @@ from app.store.bot.picturbation import Picturbator
 if typing.TYPE_CHECKING:
     from app.web.app import Application
 
-BARRELS_PER_STEP = 10
-
 
 class BotManager:
+    CMDS_PATTERNS = {
+        "greetings": r"Привет!", "start_loto": r"([Нн]ачать) (лото)( [1|2])? ?!?",
+        "join_loto": r"\+", "fill_bag": r"([Зз]аполнить) (мешок|мешочек) ?!?",
+        "game_move": r"([Хх]од) ?!?", "stop_loto": r"([Сс]топ) (лото) ?!?",
+    }
+
+    class Commands(enum.Enum):
+        nothing = 0b000000
+        greetings = 0b000001
+        start_loto = 0b000010
+        join_loto = 0b000100
+        fill_bag = 0b001000
+        pull_barrel = 0b010000
+        stop_loto = 0b100000
+
     def __init__(self, app: "Application"):
         self.app = app
         self.bot = None
         self.logger = getLogger("handler")
         self.russian_loto = RussianLoto(app)
-        self.bot_mention = f"(\[club{self.app.config.bot.group_id}\|[@]?[а-яА-Яa-zA-Z_0-9 ]+\][,]?)"
+        self.bot_mention = rf"(\[club{self.app.config.bot.group_id}\|[@]?[а-яА-Яa-zA-Z_0-9 ]+\][,]?)"
 
     async def handle_updates(self, updates: list[Update]):
         for update in updates:
@@ -30,55 +43,37 @@ class BotManager:
                 case "chat_invite_yabl00":
                     pass
 
-    async def handle_new_message(self, update: Update):
-        greetings = int(not (re.fullmatch(f"({self.bot_mention} )?Привет! *", update.object.body) is None))
-        start_loto = int(not (
-                re.fullmatch(f"({self.bot_mention} )?(начать) (лото)( [1|2])? *(!)? *",
-                             update.object.body.lower()) is None
-        )) << 1
-        join_loto = int(not (re.fullmatch(f" *\+ *", update.object.body) is None)) << 2
-        fill_bag = int(not (
-                re.fullmatch(f"({self.bot_mention} )?(заполнить) (мешок) *(!)? *", update.object.body.lower()) is None
-        )) << 3
-        pull_barrel = int(not (
-                re.fullmatch(f"({self.bot_mention} )?(ход) *(!)? *", update.object.body.lower()) is None
-        )) << 4
-        stop_loto = int(not (
-                re.fullmatch(f"({self.bot_mention} )?(стоп) (лото) *(!)? *", update.object.body.lower()) is None
-        )) << 5
-        command_flags = stop_loto | pull_barrel | fill_bag | join_loto | start_loto | greetings
+    @staticmethod
+    def _build_cmd_flag(bot_mention: str, command: str, source: str) -> int:
+        pattern = rf"({bot_mention} )?{command}"
+        flag = int(re.fullmatch(pattern, source) is not None)
+        return flag
 
+    async def handle_new_message(self, update: Update):
+        msg = update.object.body
+        command_flags = self.Commands(sum([
+            self._build_cmd_flag(self.bot_mention, cmd, msg) << i for i, cmd in enumerate(self.CMDS_PATTERNS.values())
+        ]))
+        user_id = update.object.user_id
+        peer_id = update.object.peer_id
+        message_id = update.object.message_id
         match command_flags:
-            case Commands.greetings.value:
-                await self.app.store.vk_api.send_message(
-                    Message(user_id=update.object.user_id, text="Привет!"), update.object.peer_id
-                )
-            case Commands.start_loto.value:
-                lead_id = update.object.user_id
-                peer_id = update.object.peer_id
+            case self.Commands.greetings:
+                await self.app.store.vk_api.send_message(Message(user_id=user_id, text="Привет!"), peer_id)
+            case self.Commands.start_loto:
                 game_type = re.sub("\D", "", update.object.body)
-                if lead_id != peer_id:
-                    await self.russian_loto.start_session(lead_id, peer_id, game_type)
-            case Commands.join_loto.value:
-                player_id = update.object.user_id
-                peer_id = update.object.peer_id
-                message_id = update.object.message_id
-                if player_id != peer_id:
-                    await self.russian_loto.add_players(player_id, peer_id, message_id)
-            case Commands.fill_bag.value:
-                user_id = update.object.user_id
-                peer_id = update.object.peer_id
-                message_id = update.object.message_id
+                if user_id != peer_id:
+                    await self.russian_loto.start_session(user_id, peer_id, game_type)
+            case self.Commands.join_loto:
+                if user_id != peer_id:
+                    await self.russian_loto.add_players(user_id, peer_id, message_id)
+            case self.Commands.fill_bag:
                 if user_id != peer_id:
                     await self.russian_loto.fill_bag(user_id, peer_id, message_id)
-            case Commands.pull_barrel.value:
-                user_id = update.object.user_id
-                peer_id = update.object.peer_id
+            case self.Commands.pull_barrel:
                 if user_id != peer_id:
                     await self.russian_loto.lead_move(user_id, peer_id)
-            case Commands.stop_loto.value:
-                user_id = update.object.user_id
-                peer_id = update.object.peer_id
+            case self.Commands.stop_loto:
                 if user_id != peer_id:
                     await self.russian_loto.close_session(user_id, peer_id)
             case _:
@@ -86,6 +81,12 @@ class BotManager:
 
 
 class RussianLoto:
+    BARRELS_PER_STEP = 10
+    MIN_PLAYERS_AMOUNT = 2
+    ROW_NUMBERS_AMOUNT = 5
+    ROWS_AMOUNT = 3
+    NUMERIC_CELLS_AMOUNT = ROW_NUMBERS_AMOUNT * ROWS_AMOUNT
+
     def __init__(self, app: "Application"):
         self.app = app
         self.picturbator = Picturbator(app)
@@ -127,9 +128,7 @@ class RussianLoto:
         if not lead:
             return
 
-        min_amount = 2
-
-        if len(players) >= min_amount and lead.player_id == user_id:
+        if len(players) >= self.MIN_PLAYERS_AMOUNT and lead.player_id == user_id:
             await self.app.store.loto_games.set_session_status(peer_id, "filling bag")
             filled = await self.app.store.loto_games.add_barrels_to_session(peer_id)
             if filled:
@@ -154,7 +153,7 @@ class RussianLoto:
         barrels = await self.app.store.loto_games.get_barrels_by_bag_id(session_lead.session_id)
 
         barrel_nums = [barrel.barrel_number for barrel in barrels]
-        picked_barrel_nums = rand_sample(barrel_nums, BARRELS_PER_STEP)
+        picked_barrel_nums = rand_sample(barrel_nums, self.BARRELS_PER_STEP)
         await self.app.store.loto_games.pull_barrels_from_bag(session_lead.session_id, picked_barrel_nums)
         await self.app.store.loto_games.cover_card_cells(session_lead.session_id, picked_barrel_nums)
 
@@ -175,19 +174,19 @@ class RussianLoto:
             match game_type:
                 case "simple":
                     covered_cells = list(filter(lambda card_cell: card_cell.is_covered is True, card))
-                    if len(covered_cells) == 15:
+                    if len(covered_cells) == self.NUMERIC_CELLS_AMOUNT:
                         players_ids_stats[player.player_id] = True
                 case "short":
                     covered_cells = [
                         len(list(filter(
                             lambda card_cell: card_cell.is_covered is True and card_cell.row_index == i, card
-                        ))) for i in range(1, 4)
+                        ))) for i in range(1, self.ROWS_AMOUNT + 1)
                     ]
-                    if covered_cells.count(5):
+                    if covered_cells.count(self.ROW_NUMBERS_AMOUNT):
                         players_ids_stats[player.player_id] = True
 
         barrels_nums = ", ".join(list(map(str, picked_barrel_nums)))
-        if len(barrels) == BARRELS_PER_STEP or True in players_ids_stats.values():  # last step or win
+        if len(barrels) == self.BARRELS_PER_STEP or True in players_ids_stats.values():  # last step or win
             await self.app.store.loto_games.set_session_status(session.chat_id, "summing up")
             winners_ids = [player_id for player_id, stat in players_ids_stats.items() if stat is True]
             players_ids = [player_id for player_id, stat in players_ids_stats.items() if stat is False]
@@ -204,7 +203,7 @@ class RussianLoto:
                 msg = f"Игра окончена! Номера за этот ход: {barrels_nums}."
             await self.app.store.loto_games.delete_session(session_lead.session_id)
         else:
-            msg = f"Номера за этот ход: {barrels_nums}. Ходов осталось: {len(barrels)//10 - 1}."
+            msg = f"Номера за этот ход: {barrels_nums}. Ходов осталось: {len(barrels) // self.BARRELS_PER_STEP - 1}."
 
         attachment = ",".join(doc_refs)
         await self.app.store.vk_api.send_message(
@@ -226,12 +225,3 @@ class RussianLoto:
                 await self.app.store.vk_api.send_message(Message(
                     user_id=user_id, text="Игра окончена досрочно!"
                 ), peer_id)
-
-
-class Commands(enum.Enum):
-    greetings = 0b000001
-    start_loto = 0b000010
-    join_loto = 0b000100
-    fill_bag = 0b001000
-    pull_barrel = 0b010000
-    stop_loto = 0b100000

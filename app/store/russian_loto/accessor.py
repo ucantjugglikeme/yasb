@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from random import shuffle, choice
 
 from sqlalchemy import select, update, delete, and_, ChunkedIteratorResult
@@ -14,10 +14,11 @@ from app.russian_loto.models import *
 if TYPE_CHECKING:
     from app.web.app import Application
 
-INDEX_OFFSET = 1
-
 
 class RussianLotoAccessor(BaseAccessor):
+    INDEX_OFFSET = 1
+    BARRELS_AMOUNT = 90
+
     async def create_new_session(self, chat_id: int, game_type: str) -> Optional[int]:
         start_date = datetime.now()
         type_ = "short" if game_type == "2" else "simple"
@@ -95,15 +96,15 @@ class RussianLotoAccessor(BaseAccessor):
     async def add_player_card(self, session_id: int, player_id: int, card_number: int) -> list[CardCell]:
         card_cells = []
         player_card = [
-            self.app.cards.cards[card_number - INDEX_OFFSET].r_1,
-            self.app.cards.cards[card_number - INDEX_OFFSET].r_2,
-            self.app.cards.cards[card_number - INDEX_OFFSET].r_3,
+            self.app.cards.cards[card_number - self.INDEX_OFFSET].r_1,
+            self.app.cards.cards[card_number - self.INDEX_OFFSET].r_2,
+            self.app.cards.cards[card_number - self.INDEX_OFFSET].r_3,
         ]
         for i, card_row in enumerate(player_card):
             r_i_card_cells = [
                 CardCellModel(
                     session_id=session_id, player_id=player_id,
-                    row_index=i + INDEX_OFFSET, cell_index=j + INDEX_OFFSET,
+                    row_index=i + self.INDEX_OFFSET, cell_index=j + self.INDEX_OFFSET,
                     barrel_number=value, is_covered=False
                 ) for j, value in enumerate(card_row)
             ]
@@ -132,7 +133,7 @@ class RussianLotoAccessor(BaseAccessor):
         return new_player_card
 
     async def add_barrels_to_session(self, session_id) -> bool:
-        barrels = [BarrelModel(bag_id=session_id, barrel_number=n) for n in range(1, 91)]
+        barrels = [BarrelModel(bag_id=session_id, barrel_number=n) for n in range(1, self.BARRELS_AMOUNT + 1)]
 
         async with self.app.database.session() as add_session:
             try:
@@ -167,7 +168,6 @@ class RussianLotoAccessor(BaseAccessor):
             await update_session.execute(query_update_players)
             await update_session.commit()
 
-    # NEW
     async def cover_card_cells(self, session_id: int, picked_barrel_numbers: list[int]):
         query_update_cells = update(CardCellModel).where(
             and_(CardCellModel.session_id == session_id, CardCellModel.barrel_number.in_(picked_barrel_numbers))
@@ -283,7 +283,6 @@ class RussianLotoAccessor(BaseAccessor):
             card_number=result.session_player[0].card_number, role=result.session_player[0].role
         )
 
-    # NEW
     async def get_session_and_lead(self, session_id) -> tuple[GameSession | None, SessionPlayer | None]:
         query_get_session_and_player = select(GameSessionModel).where(
             GameSessionModel.chat_id == session_id
@@ -304,7 +303,6 @@ class RussianLotoAccessor(BaseAccessor):
             )
         return None, None
 
-    # NEW
     async def get_barrels_by_bag_id(self, bag_id) -> list[Barrel]:
         query_get_barrels = select(BarrelModel).where(BarrelModel.bag_id == bag_id)
 
@@ -317,7 +315,6 @@ class RussianLotoAccessor(BaseAccessor):
             return [Barrel(id=player.id, bag_id=player.bag_id, barrel_number=player.barrel_number) for player in result]
         return []
 
-    # NEW
     async def get_card_cells_from_session(self, session_id) -> list[CardCell]:
         query_get_card_cells = select(CardCellModel).where(CardCellModel.session_id == session_id)
 
@@ -334,7 +331,6 @@ class RussianLotoAccessor(BaseAccessor):
             ) for card_cell in result
         ]
 
-    # NEW
     async def pull_barrels_from_bag(self, bag_id: int, picked_numbers: list[int]):
         query_delete_barrels = delete(BarrelModel).where(
             and_(BarrelModel.bag_id == bag_id, BarrelModel.barrel_number.in_(picked_numbers))

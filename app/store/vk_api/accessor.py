@@ -8,17 +8,20 @@ from aiohttp import TCPConnector
 from aiohttp.client import ClientSession
 
 from app.base.base_accessor import BaseAccessor
-from app.store.vk_api.dataclasses import Message  # , Update, UpdateObject
+from app.store.vk_api.dataclasses import Message
 from app.store.vk_api.poller import Poller
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
 
-API_PATH = "https://api.vk.com/method/"
 
-
-# TODO: fix this
+# TODO: fix graceful shutdown
 class VkApiAccessor(BaseAccessor):
+    API_PATH = "https://api.vk.com/method/"
+
+    class VkApiFail(enum.Enum):
+        key_timeout = 2
+
     def __init__(self, app: "Application", *args, **kwargs):
         super().__init__(app, *args, **kwargs)
         self.session: Optional[ClientSession] = None
@@ -54,7 +57,7 @@ class VkApiAccessor(BaseAccessor):
     async def _get_long_poll_service(self):
         async with self.session.get(
                 self._build_query(
-                    host=API_PATH,
+                    host=self.API_PATH,
                     method="groups.getLongPollServer",
                     params={
                         "group_id": self.app.config.bot.group_id,
@@ -88,8 +91,8 @@ class VkApiAccessor(BaseAccessor):
                 self.ts = json_data["ts"]
                 updates = json_data["updates"]
             except KeyError:
-                match json_data["failed"]:
-                    case VkApiFail.key_timeout.value:
+                match self.VkApiFail(json_data["failed"]):
+                    case self.VkApiFail.key_timeout:
                         await self._get_long_poll_service()
                         updates = []
             return updates
@@ -115,7 +118,7 @@ class VkApiAccessor(BaseAccessor):
             })
         async with self.session.get(
                 self._build_query(
-                    API_PATH,
+                    self.API_PATH,
                     "messages.send",
                     params=params,
                 )
@@ -126,7 +129,7 @@ class VkApiAccessor(BaseAccessor):
     async def get_chat_user(self, chat_id: int, user_id: int) -> dict[str, int | str]:
         async with self.session.get(
                 self._build_query(
-                    API_PATH,
+                    self.API_PATH,
                     "messages.getConversationMembers",
                     params={
                         "access_token": self.app.config.bot.token,
@@ -152,7 +155,7 @@ class VkApiAccessor(BaseAccessor):
     async def post_doc(self, doc_path: str) -> str:
         async with self.session.get(
                 self._build_query(
-                    API_PATH,
+                    self.API_PATH,
                     "docs.getWallUploadServer",
                     params={
                         "access_token": self.app.config.bot.token,
@@ -172,7 +175,7 @@ class VkApiAccessor(BaseAccessor):
 
         async with self.session.get(
                 self._build_query(
-                    API_PATH,
+                    self.API_PATH,
                     "docs.save",
                     params={
                         "access_token": self.app.config.bot.token,
@@ -188,7 +191,3 @@ class VkApiAccessor(BaseAccessor):
             doc_ref = f"{type_}{owner_id}_{id_}_{self.app.config.bot.token}"
 
         return doc_ref
-
-
-class VkApiFail(enum.Enum):
-    key_timeout = 2
