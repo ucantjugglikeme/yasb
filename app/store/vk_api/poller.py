@@ -39,7 +39,7 @@ class Poller:
             if raw_updates:
                 updates = [
                     Update(
-                        type="chat_invite_yabl00" if "action" in raw_update["object"]["message"] and
+                        type="chat_invite_yasb" if "action" in raw_update["object"]["message"] and
                         raw_update["object"]["message"]["action"]["type"] and
                         raw_update["object"]["message"]["action"]["member_id"] ==
                         -self.store.bots_manager.app.config.bot.group_id else raw_update["type"],

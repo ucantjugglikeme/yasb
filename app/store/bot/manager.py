@@ -40,7 +40,7 @@ class BotManager:
             match update.type:
                 case "message_new":
                     await self.handle_new_message(update)
-                case "chat_invite_yabl00":
+                case "chat_invite_yasb":
                     pass
 
     @staticmethod
