@@ -1,5 +1,5 @@
 import asyncio
-from asyncio import Future, Task
+from asyncio import Future, Task, TimeoutError
 from aiohttp import ClientOSError
 from typing import Optional
 
@@ -33,6 +33,8 @@ class Poller:
             try:
                 raw_updates = await self.store.vk_api.poll()
             except ClientOSError:
+                continue
+            except TimeoutError:
                 continue
             if raw_updates:
                 updates = [

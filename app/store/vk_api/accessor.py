@@ -171,9 +171,13 @@ class VkApiAccessor(BaseAccessor):
             self.logger.info(f"{{'file':'{doc_path}'}}")
             upload_url = data["upload_url"]
 
+        # TODO: find the way to solve error 'no_file'
         async with self.session.post(upload_url, data={"file": open(doc_path, "rb")}) as resp:
-            data = (await resp.json(content_type=None))
+            data = (await resp.json(content_type='application/json'))
             self.logger.info(data)
+            # I dunno what to do
+            if "file" not in data:
+                return ""
             file = data["file"]
 
         async with self.session.get(
